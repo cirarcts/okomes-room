@@ -1,12 +1,201 @@
 ---
-import ComingSoon from '../components/ComingSoon.astro';
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { NAV_ITEMS } from '../lib/navigation';
+import { withBase } from '../lib/paths';
+
+const roomIcons: Partial<Record<string, string>> = {
+  '/footprints/':
+    'M4 16.5V14l-.6-2.3a3.3 3.3 0 0 1 1.4-3.6l.8-.5A2.2 2.2 0 0 1 9 9.5l-.4 2.6L8 14v2.5a2 2 0 0 1-4 0ZM4 14h4M16 20v-2.5l-.6-2.3a3.3 3.3 0 0 1 1.4-3.6l.8-.5a2.2 2.2 0 0 1 3.4 1.9l-.4 2.6-.6 1.9V20a2 2 0 0 1-4 0Zm0-2.5h4',
+  '/exhibits/':
+    'M4 9h16M9 9v11M6 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z',
+  '/atelier/':
+    'M12 21a9 9 0 1 1 9-9 2 2 0 0 1-2 2h-4a2 2 0 0 0-1.4 3.4 2 2 0 0 1-1.6 3.6ZM7.5 11h.01M10 7.5h.01M14 7h.01M17 10h.01',
+};
+const doorIcon = 'M5 21h14M7 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M14 12h.01';
 ---
 
 <BaseLayout>
-  <ComingSoon
-    title="okomeのおへや"
-    subLabel="okome's Room"
-    description="好きなものを、好きなだけ。"
-  />
+  <section class="night-room flex flex-1 items-center" aria-labelledby="room-title">
+    <div class="room-layout mx-auto grid w-full max-w-5xl items-center">
+      <div class="room-intro grid gap-2.5">
+        <p class="text-accent font-mono text-sm tracking-widest" lang="en">
+          okome's Room
+        </p>
+        <h1 id="room-title" class="room-title font-bold tracking-tight">
+          okomeのおへや
+        </h1>
+        <p class="text-muted">好きなものを、好きなだけ。</p>
+      </div>
+
+      <nav class="room-shelf" aria-label="各エリアへの入口">
+        <ul class="grid gap-1.5">
+          {NAV_ITEMS.map((item) => (
+            <li>
+              <a
+                href={withBase(item.href)}
+                class:list={['room-entry', { 'room-entry-lit': item.href === '/exhibits/' }]}
+              >
+                <span class="room-icon" aria-hidden="true">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d={roomIcons[item.href] ?? doorIcon} />
+                  </svg>
+                </span>
+                <span class="grid min-w-0 gap-0.5">
+                  <span class="text-[1rem] font-semibold sm:text-lg">{item.label}</span>
+                  <span class="text-muted font-mono text-xs tracking-wider uppercase" lang="en">
+                    {item.subLabel}
+                  </span>
+                </span>
+                <svg
+                  class="text-muted size-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="m9 6 6 6-6 6" />
+                </svg>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+    </div>
+  </section>
 </BaseLayout>
+
+<style>
+  .night-room {
+    --grid-line: color-mix(in srgb, var(--color-accent) 4%, transparent);
+    --shelf-border: color-mix(in srgb, var(--color-muted) 23%, var(--color-surface));
+    background:
+      radial-gradient(
+        ellipse at 76% 30%,
+        color-mix(in srgb, var(--color-warm) 13%, transparent),
+        transparent 52%
+      ),
+      radial-gradient(
+        ellipse at 20% 72%,
+        color-mix(in srgb, var(--color-accent) 6%, transparent),
+        transparent 49%
+      ),
+      linear-gradient(180deg, transparent 20%, var(--color-base) 96%),
+      repeating-linear-gradient(0deg, var(--grid-line) 0 1px, transparent 1px 36px),
+      repeating-linear-gradient(90deg, var(--grid-line) 0 1px, transparent 1px 36px);
+    background-position: center;
+  }
+
+  .room-layout {
+    gap: clamp(1.75rem, 5vw, 4rem);
+    padding: clamp(2.5rem, 8vw, 6rem) clamp(1rem, 5vw, 3rem);
+  }
+
+  .room-intro {
+    text-align: center;
+  }
+
+  .room-title {
+    font-size: clamp(1.75rem, 4.5vw, 2.75rem);
+    line-height: 1.22;
+  }
+
+  .room-shelf {
+    position: relative;
+    width: 100%;
+    max-width: 30rem;
+    margin-inline: auto;
+    padding: 11px 11px 13px;
+    border: 1px solid var(--shelf-border);
+    border-top-color: color-mix(in srgb, var(--color-warm) 42%, var(--color-surface));
+    border-bottom-width: 7px;
+    border-radius: 11px;
+    background: linear-gradient(155deg, var(--color-subtle), var(--color-base));
+    box-shadow: 0 22px 32px color-mix(in srgb, var(--color-base) 70%, transparent);
+  }
+
+  .room-shelf::before {
+    position: absolute;
+    inset: 1px 16% auto;
+    height: 2px;
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--color-warm) 70%, var(--color-surface));
+    box-shadow: 0 2px 16px 2px color-mix(in srgb, var(--color-warm) 25%, transparent);
+    pointer-events: none;
+    content: '';
+  }
+
+  .room-entry {
+    --entry-edge: transparent;
+    --entry-glow: transparent;
+    display: grid;
+    min-height: 4.5rem;
+    color: var(--color-fg);
+    grid-template-columns: 38px minmax(0, 1fr) 16px;
+    align-items: center;
+    gap: 13px;
+    padding: 10px 13px;
+    border: 1px solid var(--shelf-border);
+    border-radius: 6px 6px 4px 4px;
+    background:
+      linear-gradient(270deg, var(--entry-glow), transparent 48%),
+      linear-gradient(155deg, transparent, color-mix(in srgb, var(--color-base) 48%, transparent))
+        var(--color-surface);
+    box-shadow:
+      inset -2px 0 var(--entry-edge),
+      inset 0 0 0 2px color-mix(in srgb, var(--color-base) 52%, transparent);
+    transition:
+      border-color 160ms ease,
+      background-color 160ms ease;
+  }
+
+  .room-entry-lit {
+    --entry-edge: color-mix(in srgb, var(--color-warm) 62%, var(--color-surface));
+    --entry-glow: color-mix(in srgb, var(--color-warm) 12%, transparent);
+  }
+
+  .room-entry:hover,
+  .room-entry:focus-visible {
+    border-color: color-mix(in srgb, var(--color-accent) 54%, var(--color-surface));
+    background-color: color-mix(in srgb, var(--color-accent) 7%, var(--color-surface));
+  }
+
+  .room-icon {
+    display: grid;
+    width: 38px;
+    aspect-ratio: 1;
+    place-items: center;
+    border: 1px solid var(--shelf-border);
+    border-radius: 5px;
+    background: linear-gradient(150deg, var(--color-surface), var(--color-base));
+    color: var(--color-accent);
+  }
+
+  .room-icon svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .room-entry-lit .room-icon {
+    color: var(--color-warm);
+  }
+
+  @media (min-width: 48rem) {
+    .room-layout {
+      grid-template-columns: minmax(0, 0.9fr) minmax(0, 1fr);
+    }
+
+    .room-intro {
+      text-align: left;
+    }
+  }
+</style>

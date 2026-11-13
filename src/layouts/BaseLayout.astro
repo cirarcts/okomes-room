@@ -36,7 +36,7 @@ const pageTitle = title ? `${title} | ${SITE_NAME}` : SITE_NAME;
         [data-nav-toggle] {
           display: none !important;
         }
-        [data-site-header] > div {
+        [data-site-header]:has([data-nav]) > div {
           height: auto !important;
           flex-wrap: wrap;
         }

@@ -19,59 +19,62 @@ const isHome = isActivePath(currentPath, '/');
       okomeのおへや
     </a>
 
-    <button
-      type="button"
-      class="hover:bg-surface text-fg -mr-2 flex size-11 items-center justify-center rounded-md transition-colors md:hidden"
-      aria-expanded="false"
-      aria-controls="site-nav"
-      data-nav-toggle
-    >
-      <span class="sr-only">メニュー</span>
-      <svg
-        class="size-6"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        aria-hidden="true"
-      >
-        <path data-icon-open d="M4 7h16M4 12h16M4 17h16"></path>
-        <path data-icon-close class="hidden" d="M6 6l12 12M18 6L6 18"></path>
-      </svg>
-    </button>
+    {!isHome && (
+      <>
+        <button
+          type="button"
+          class="hover:bg-surface text-fg -mr-2 flex size-11 items-center justify-center rounded-md transition-colors md:hidden"
+          aria-expanded="false"
+          aria-controls="site-nav"
+          data-nav-toggle
+        >
+          <span class="sr-only">メニュー</span>
+          <svg
+            class="size-6"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <path data-icon-open d="M4 7h16M4 12h16M4 17h16"></path>
+            <path data-icon-close class="hidden" d="M6 6l12 12M18 6L6 18"></path>
+          </svg>
+        </button>
 
-    <!-- スマートフォンではヘッダー直下に開くパネル、PCでは横並びのメニューになる -->
-    <nav
-      id="site-nav"
-      aria-label="サイト内"
-      class="max-md:border-surface max-md:bg-base hidden max-md:absolute max-md:inset-x-0 max-md:top-14 max-md:border-b md:block"
-      data-nav
-    >
-      <ul class="flex flex-col max-md:px-4 max-md:py-2 md:flex-row md:gap-1">
-        {NAV_ITEMS.map((item) => {
-          const isCurrent = isActivePath(currentPath, item.href);
-          return (
-            <li>
-              <a
-                href={withBase(item.href)}
-                aria-current={isCurrent ? 'page' : undefined}
-                class:list={[
-                  'flex min-h-11 items-center gap-3 rounded-md px-3 transition-colors md:flex-col md:justify-center md:gap-0',
-                  'hover:bg-surface hover:text-fg',
-                  isCurrent ? 'text-accent' : 'text-muted',
-                ]}
-              >
-                <span class="text-sm font-medium">{item.label}</span>
-                <span class="font-mono text-[0.625rem] tracking-widest uppercase">
-                  {item.subLabel}
-                </span>
-              </a>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
+        <nav
+          id="site-nav"
+          aria-label="サイト内"
+          class="max-md:border-surface max-md:bg-base hidden max-md:absolute max-md:inset-x-0 max-md:top-14 max-md:border-b md:block"
+          data-nav
+        >
+          <ul class="flex flex-col max-md:px-4 max-md:py-2 md:flex-row md:gap-1">
+            {NAV_ITEMS.map((item) => {
+              const isCurrent = isActivePath(currentPath, item.href);
+              return (
+                <li>
+                  <a
+                    href={withBase(item.href)}
+                    aria-current={isCurrent ? 'page' : undefined}
+                    class:list={[
+                      'flex min-h-11 items-center gap-3 rounded-md px-3 transition-colors md:flex-col md:justify-center md:gap-0',
+                      'hover:bg-surface hover:text-fg',
+                      isCurrent ? 'text-accent' : 'text-muted',
+                    ]}
+                  >
+                    <span class="text-sm font-medium">{item.label}</span>
+                    <span class="font-mono text-[0.625rem] tracking-widest uppercase">
+                      {item.subLabel}
+                    </span>
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+      </>
+    )}
   </div>
 </header>
 
