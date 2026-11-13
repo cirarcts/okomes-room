@@ -37,7 +37,7 @@ export default defineConfig([
 
   {
     rules: {
-      // 安易な any を避ける（CLAUDE.mdのコーディング規約）
+      // 安易な any を避ける（コーディング規約）
       '@typescript-eslint/no-explicit-any': 'error',
     },
   },

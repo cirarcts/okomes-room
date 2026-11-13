@@ -42,14 +42,13 @@ npm run verify
 
 ## ドキュメント
 
-| 文書                                         | 内容                                           |
-| -------------------------------------------- | ---------------------------------------------- |
-| [docs/idea.md](docs/idea.md)                 | 構想・基本設計仕様（プロジェクトの出発点）     |
-| [docs/architecture.md](docs/architecture.md) | 全体構成、技術選定、ディレクトリと責務         |
-| [docs/design.md](docs/design.md)             | デザインコンセプト、配色、共通UIルール         |
-| [docs/development.md](docs/development.md)   | 開発環境、コマンド、ブランチ運用               |
-| [docs/deployment.md](docs/deployment.md)     | ビルド、CI、GitHub Pages への公開手順          |
-| [docs/security.md](docs/security.md)         | 公開情報・秘密情報・外部コンテンツの取り扱い   |
-| [CLAUDE.md](CLAUDE.md)                       | AIエージェント向けの開発ガイドライン・規約全般 |
+| 文書                                         | 内容                                         |
+| -------------------------------------------- | -------------------------------------------- |
+| [docs/idea.md](docs/idea.md)                 | 構想・基本設計仕様（プロジェクトの出発点）   |
+| [docs/architecture.md](docs/architecture.md) | 全体構成、技術選定、ディレクトリと責務       |
+| [docs/design.md](docs/design.md)             | デザインコンセプト、配色、共通UIルール       |
+| [docs/development.md](docs/development.md)   | 開発環境、コマンド、ブランチ運用             |
+| [docs/deployment.md](docs/deployment.md)     | ビルド、CI、GitHub Pages への公開手順        |
+| [docs/security.md](docs/security.md)         | 公開情報・秘密情報・外部コンテンツの取り扱い |
 
 `docs/content.md`（コンテンツ構造・スキーマ・記録の追加方法）は、最初のコンテンツスキーマを実装する際に追加します。
