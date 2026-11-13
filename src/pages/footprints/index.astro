@@ -1,0 +1,10 @@
+---
+import ComingSoon from '../../components/ComingSoon.astro';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const description = '日常の記録、活動履歴、発見、考えたこと。';
+---
+
+<BaseLayout title="あしあと" description={description}>
+  <ComingSoon title="あしあと" subLabel="Footprints" description={description} />
+</BaseLayout>
