@@ -51,7 +51,9 @@
 ├── docs/                 ドキュメント
 ├── public/               そのまま配信する静的ファイル（favicon など）
 ├── src/
+│   ├── components/       サイト共通のUI部品（SiteHeader.astro など）
 │   ├── layouts/          ページ共通の外枠（BaseLayout.astro）
+│   ├── lib/              UIに依存しない共通ロジック（パス操作、ナビゲーション定義）とそのテスト
 │   ├── pages/            ルーティング対象のページ（ファイル名は kebab-case）
 │   └── styles/           共通CSS・デザイントークン（global.css）
 ├── astro.config.mjs
@@ -64,7 +66,6 @@
 
 | 置き場所             | 責務                                                               |
 | -------------------- | ------------------------------------------------------------------ |
-| `src/components/`    | サイト共通のUI部品（ヘッダー、ナビゲーション、フッターなど）       |
 | `src/content/`       | コンテンツデータ（Astro Content Collections）。スキーマはZodで定義 |
 | `src/exhibits/<名>/` | 展示物ごとの専用コンポーネント・スタイル・データ変換ロジック       |
 | `scripts/`           | ビルド前のデータ集計・間引きなどのローカルスクリプト               |
@@ -74,8 +75,28 @@
 ### 内部リンクとアセットのパス
 
 GitHub Pages のプロジェクトページは `/<リポジトリ名>/` 配下で配信されるため、**ルート相対パス（`/foo`）を直接書かない**。
-`import.meta.env.BASE_URL` を基準に組み立てる（例：[BaseLayout.astro](../src/layouts/BaseLayout.astro)）。
-共通ナビゲーションの実装時に、パスを組み立てるヘルパーを用意する想定。
+内部リンクやアセットのパスは、[src/lib/paths.ts](../src/lib/paths.ts) の `withBase()` を通して組み立てる。
+
+```astro
+<a href={withBase('/exhibits/')}>展示室</a>
+```
+
+### 共通ナビゲーション
+
+- ナビゲーションに並べるエリアは [src/lib/navigation.ts](../src/lib/navigation.ts) の `NAV_ITEMS` で一元管理する。エリアの追加・並び替え・URL変更はここだけを編集する。
+- ヘッダーは [SiteHeader.astro](../src/components/SiteHeader.astro)。`BaseLayout` に組み込まれているため、`BaseLayout` を使うページには自動で表示される。
+- スマートフォン用メニューの開閉はReactを使わず、コンポーネント内の小さなスクリプトで行う（状態が開閉の1つだけのため）。
+
+### URL
+
+| エリア   | パス           |
+| -------- | -------------- |
+| トップ   | `/`            |
+| あしあと | `/footprints/` |
+| 展示室   | `/exhibits/`   |
+| アトリエ | `/atelier/`    |
+
+末尾スラッシュ付きで統一する（GitHub Pages のディレクトリ配信に合わせる）。
 
 ### クライアントJavaScript
 

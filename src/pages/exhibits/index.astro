@@ -1,0 +1,10 @@
+---
+import ComingSoon from '../../components/ComingSoon.astro';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const description = '完成した作品、研究成果、インタラクティブな展示物。';
+---
+
+<BaseLayout title="展示室" description={description}>
+  <ComingSoon title="展示室" subLabel="Exhibits" description={description} />
+</BaseLayout>

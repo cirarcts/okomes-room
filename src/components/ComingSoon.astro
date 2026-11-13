@@ -1,0 +1,17 @@
+---
+// 各エリアの中身ができるまでの仮表示。エリアの実装時に置き換える。
+interface Props {
+  title: string;
+  subLabel: string;
+  description: string;
+}
+
+const { title, subLabel, description } = Astro.props;
+---
+
+<section class="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
+  <p class="text-accent font-mono text-sm tracking-widest">{subLabel}</p>
+  <h1 class="text-3xl font-bold">{title}</h1>
+  <p class="text-muted">{description}</p>
+  <p class="text-muted text-sm">ただいま準備中です。</p>
+</section>
