@@ -1,0 +1,29 @@
+# ビルド成果物
+dist/
+
+# Astroが生成する型定義など
+.astro/
+
+# 依存パッケージ
+node_modules/
+
+# ログ
+npm-debug.log*
+
+# テストカバレッジ
+coverage/
+
+# 環境変数（秘密情報をコミットしない）
+.env
+.env.*
+!.env.example
+
+# OS・エディタ
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Claude Codeのローカル設定・Worktree
+.claude/settings.local.json
+.claude/worktrees/

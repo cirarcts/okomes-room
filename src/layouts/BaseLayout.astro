@@ -1,0 +1,33 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  /** ページ固有のタイトル。省略時はサイト名のみを表示する。 */
+  title?: string;
+  description?: string;
+}
+
+const SITE_NAME = 'okomeのおへや';
+const DEFAULT_DESCRIPTION = '好きなものを、好きなだけ。okomeの記録や作品を集めたおへや。';
+
+const { title, description = DEFAULT_DESCRIPTION } = Astro.props;
+const pageTitle = title ? `${title} | ${SITE_NAME}` : SITE_NAME;
+
+// サブパス配信（GitHub Pages）でも壊れないよう、BASE_URL を基準にパスを組み立てる
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+---
+
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="generator" content={Astro.generator} />
+    <link rel="icon" type="image/svg+xml" href={`${base}/favicon.svg`} />
+    <title>{pageTitle}</title>
+  </head>
+  <body class="bg-base text-fg min-h-screen antialiased">
+    <slot />
+  </body>
+</html>

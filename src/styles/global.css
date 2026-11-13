@@ -1,0 +1,41 @@
+@import 'tailwindcss';
+
+/*
+ * サイト共通のデザイントークン。
+ * 色は docs/design.md の「暫定カラーパレット」に対応する（確定色ではない）。
+ * ここで定義した値は bg-base / text-fg / text-accent などのユーティリティとして使える。
+ */
+@theme {
+  --color-base: #0d1521;
+  --color-surface: #182432;
+  --color-subtle: #111c29;
+  --color-fg: #eaf0f5;
+  --color-muted: #9eaab7;
+  --color-accent: #72d4d0;
+  --color-warm: #e9b77d;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    background-color: var(--color-base);
+    color: var(--color-fg);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  /* 動きを減らすOS設定を尊重する */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}

@@ -1,0 +1,10 @@
+dist/
+.astro/
+node_modules/
+coverage/
+package-lock.json
+
+# 構想メモ・エージェント向け指示は原文のまま保持する
+docs/idea.md
+CLAUDE.md
+AGENTS.md
