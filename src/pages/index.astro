@@ -15,7 +15,22 @@ const doorIcon = 'M5 21h14M7 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M14 12h.01';
 ---
 
 <BaseLayout>
-  <section class="night-room flex flex-1 items-center" aria-labelledby="room-title">
+  <button
+    slot="header-action"
+    type="button"
+    class="text-muted hover:text-fg min-h-11 rounded-md px-2 text-xs sm:text-sm"
+    data-room-motion-toggle
+    hidden
+  >
+    光の動きを停止
+  </button>
+  <section class="night-room flex flex-1 items-center" aria-labelledby="room-title" data-night-room>
+    <span class="room-light-layer room-grid-flow" aria-hidden="true"></span>
+    <span
+      class="room-light-layer room-grid-response"
+      aria-hidden="true"
+      data-room-grid-response
+    ></span>
     <div class="room-layout mx-auto grid w-full max-w-5xl items-center">
       <div class="room-intro grid gap-2.5">
         <p class="text-accent font-mono text-sm tracking-widest" lang="en">
@@ -74,8 +89,66 @@ const doorIcon = 'M5 21h14M7 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M14 12h.01';
   </section>
 </BaseLayout>
 
+<script>
+  const room = document.querySelector<HTMLElement>('[data-night-room]');
+  const response = room?.querySelector<HTMLElement>('[data-room-grid-response]');
+  const toggle = document.querySelector<HTMLButtonElement>('[data-room-motion-toggle]');
+
+  if (room && response && toggle) {
+    const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+    let paused = false;
+    let pulse: Animation | undefined;
+
+    const updateMotion = () => {
+      const enabled = !paused && !reducedMotion.matches;
+      room.toggleAttribute('data-motion-enabled', enabled);
+      toggle.hidden = reducedMotion.matches;
+      toggle.textContent = paused ? '光の動きを再開' : '光の動きを停止';
+      if (!enabled) pulse?.cancel();
+    };
+
+    const lightUp = (entry: HTMLAnchorElement) => {
+      if (paused || reducedMotion.matches) return;
+
+      const wall = room.getBoundingClientRect();
+      const panel = entry.getBoundingClientRect();
+      response.style.setProperty(
+        '--pulse-x',
+        `${panel.left - wall.left + Math.min(panel.width / 3, 85)}px`,
+      );
+      response.style.setProperty('--pulse-y', `${panel.top - wall.top}px`);
+      pulse?.cancel();
+      pulse = response.animate([{ opacity: 0 }, { opacity: 0.63, offset: 0.22 }, { opacity: 0 }], {
+        duration: 1000,
+        easing: 'ease-out',
+      });
+    };
+
+    for (const entry of room.querySelectorAll<HTMLAnchorElement>('.room-entry')) {
+      entry.addEventListener('pointerenter', (event) => {
+        if (event.pointerType === 'mouse' || event.pointerType === 'pen') lightUp(entry);
+      });
+      entry.addEventListener('pointerdown', (event) => {
+        if (event.pointerType === 'touch') lightUp(entry);
+      });
+      entry.addEventListener('focus', () => {
+        if (entry.matches(':focus-visible')) lightUp(entry);
+      });
+    }
+
+    toggle.addEventListener('click', () => {
+      paused = !paused;
+      updateMotion();
+    });
+    reducedMotion.addEventListener('change', updateMotion);
+    updateMotion();
+  }
+</script>
+
 <style>
   .night-room {
+    position: relative;
+    isolation: isolate;
     --grid-line: color-mix(in srgb, var(--color-accent) 4%, transparent);
     --shelf-border: color-mix(in srgb, var(--color-muted) 23%, var(--color-surface));
     background:
@@ -93,6 +166,80 @@ const doorIcon = 'M5 21h14M7 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M14 12h.01';
       repeating-linear-gradient(0deg, var(--grid-line) 0 1px, transparent 1px 36px),
       repeating-linear-gradient(90deg, var(--grid-line) 0 1px, transparent 1px 36px);
     background-position: center;
+  }
+
+  .room-light-layer {
+    --lit-grid: color-mix(in srgb, var(--color-accent) 38%, transparent);
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+    background:
+      repeating-linear-gradient(0deg, var(--lit-grid) 0 1px, transparent 1px 36px),
+      repeating-linear-gradient(90deg, var(--lit-grid) 0 1px, transparent 1px 36px);
+    background-position: center;
+  }
+
+  .room-grid-flow {
+    mask: radial-gradient(ellipse closest-side, black, transparent) -78% 45% / 46% 70% no-repeat;
+  }
+
+  .room-grid-response {
+    mask-image: radial-gradient(
+      ellipse 220px 155px at var(--pulse-x, 75%) var(--pulse-y, 50%),
+      black,
+      transparent
+    );
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    [data-motion-enabled] .room-grid-flow {
+      animation: grid-flow 22s linear infinite;
+    }
+
+    [data-motion-enabled] .room-shelf::before {
+      animation: shelf-glow 13s ease-in-out infinite;
+    }
+  }
+
+  @keyframes grid-flow {
+    0% {
+      opacity: 0;
+      mask-position: -78% 45%;
+    }
+    15% {
+      opacity: 0.32;
+    }
+    55% {
+      opacity: 0.45;
+    }
+    84% {
+      opacity: 0.28;
+    }
+    100% {
+      opacity: 0;
+      mask-position: 180% 64%;
+    }
+  }
+
+  @keyframes shelf-glow {
+    0%,
+    100% {
+      opacity: 0.82;
+    }
+    22% {
+      opacity: 0.98;
+    }
+    46% {
+      opacity: 0.76;
+    }
+    62% {
+      opacity: 0.9;
+    }
+    80% {
+      opacity: 0.84;
+    }
   }
 
   .room-layout {
