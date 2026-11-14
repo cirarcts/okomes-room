@@ -15,15 +15,6 @@ const doorIcon = 'M5 21h14M7 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M14 12h.01';
 ---
 
 <BaseLayout>
-  <button
-    slot="header-action"
-    type="button"
-    class="text-muted hover:text-fg min-h-11 rounded-md px-2 text-xs sm:text-sm"
-    data-room-motion-toggle
-    hidden
-  >
-    光の動きを停止
-  </button>
   <section class="night-room flex flex-1 items-center" aria-labelledby="room-title" data-night-room>
     <span class="room-light-layer room-grid-flow" aria-hidden="true"></span>
     <span
@@ -92,23 +83,18 @@ const doorIcon = 'M5 21h14M7 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M14 12h.01';
 <script>
   const room = document.querySelector<HTMLElement>('[data-night-room]');
   const response = room?.querySelector<HTMLElement>('[data-room-grid-response]');
-  const toggle = document.querySelector<HTMLButtonElement>('[data-room-motion-toggle]');
 
-  if (room && response && toggle) {
+  if (room && response) {
     const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
-    let paused = false;
     let pulse: Animation | undefined;
 
     const updateMotion = () => {
-      const enabled = !paused && !reducedMotion.matches;
-      room.toggleAttribute('data-motion-enabled', enabled);
-      toggle.hidden = reducedMotion.matches;
-      toggle.textContent = paused ? '光の動きを再開' : '光の動きを停止';
-      if (!enabled) pulse?.cancel();
+      room.toggleAttribute('data-motion-enabled', !reducedMotion.matches);
+      if (reducedMotion.matches) pulse?.cancel();
     };
 
     const lightUp = (entry: HTMLAnchorElement) => {
-      if (paused || reducedMotion.matches) return;
+      if (reducedMotion.matches) return;
 
       const wall = room.getBoundingClientRect();
       const panel = entry.getBoundingClientRect();
@@ -136,10 +122,6 @@ const doorIcon = 'M5 21h14M7 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M14 12h.01';
       });
     }
 
-    toggle.addEventListener('click', () => {
-      paused = !paused;
-      updateMotion();
-    });
     reducedMotion.addEventListener('change', updateMotion);
     updateMotion();
   }
