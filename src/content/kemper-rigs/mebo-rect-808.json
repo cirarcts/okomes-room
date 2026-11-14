@@ -2,6 +2,7 @@
   "name": "MeBo Rect 808",
   "fictional": true,
   "concept": "Green Screamでアンプの手前をブーストし、パームミュートの低域を締めたモダンメタル向けの音。",
+  "conceptEn": "Green Scream boosts the front of the amp and tightens the lows on palm-muted riffs for a modern metal tone.",
   "amplifier": {
     "name": "MeBo Dual Rect",
     "settings": [

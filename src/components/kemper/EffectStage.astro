@@ -1,6 +1,9 @@
 ---
 import type { CollectionEntry } from 'astro:content';
 
+import { getPageLocale } from '../../lib/locale';
+import { messages } from '../../lib/messages';
+
 type Rig = CollectionEntry<'kemperRigs'>['data'];
 
 interface Props {
@@ -9,13 +12,14 @@ interface Props {
 }
 
 const { label, effects } = Astro.props;
+const t = messages[getPageLocale(Astro.url.pathname).locale];
 ---
 
 <section class="effect-group" aria-label={label}>
   <h2 class="stage-heading" lang="en">
     {label}
   </h2>
-  {effects.length === 0 && <p class="text-sm">未設定</p>}
+  {effects.length === 0 && <p class="text-sm">{t.notSet}</p>}
   {effects.length > 0 && (
     <ol class="effect-slots">
       {effects.map((effect) => (
@@ -23,14 +27,14 @@ const { label, effects } = Astro.props;
           {typeof effect === 'string' ? (
             <div class="slot slot-static">
               <span lang="en">{effect}</span>
-              <span class="slot-status">設定未取得</span>
+              <span class="slot-status">{t.settingsUnavailable}</span>
             </div>
           ) : effect.name === null ? (
             <div class="slot slot-static">
               <span class="slot-position" lang="en">
                 {effect.slot}
               </span>
-              <span>未設定</span>
+              <span>{t.notSet}</span>
             </div>
           ) : (
             <details class="slot">
@@ -40,7 +44,11 @@ const { label, effects } = Astro.props;
                 </span>
                 <span lang="en">{effect.name}</span>
                 <span class="slot-status" data-enabled={effect.enabled}>
-                  {effect.enabled === undefined ? '状態未取得' : effect.enabled ? 'ON' : 'OFF'}
+                  {effect.enabled === undefined
+                    ? t.statusUnavailable
+                    : effect.enabled
+                      ? 'ON'
+                      : 'OFF'}
                 </span>
               </summary>
               {effect.parameters?.length ? (
@@ -50,7 +58,7 @@ const { label, effects } = Astro.props;
                       <dt lang="en">{label}</dt>
                       <dd>
                         {value === null
-                          ? '未設定'
+                          ? t.notSet
                           : typeof value === 'boolean'
                             ? value
                               ? 'ON'
@@ -63,7 +71,9 @@ const { label, effects } = Astro.props;
                   ))}
                 </dl>
               ) : (
-                <p class="parameter-empty">{effect.parameters ? '設定項目なし' : '設定未取得'}</p>
+                <p class="parameter-empty">
+                  {effect.parameters ? t.noSettings : t.settingsUnavailable}
+                </p>
               )}
             </details>
           )}

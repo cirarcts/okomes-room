@@ -1,0 +1,16 @@
+---
+import type { CollectionEntry } from 'astro:content';
+
+import { getRigStaticPaths } from '../../../../lib/kemper';
+import RigDetailsPage from '../../../../views/RigDetailsPage.astro';
+
+export const getStaticPaths = getRigStaticPaths;
+
+interface Props {
+  rig: CollectionEntry<'kemperRigs'>['data'];
+}
+
+const { rig } = Astro.props;
+---
+
+<RigDetailsPage rig={rig} />

@@ -2,6 +2,7 @@
   "name": "Matchbox Glass Drive",
   "fictional": true,
   "concept": "透明感のあるオーバードライブでDC-30を軽く押し、プレートリバーブでコードの余韻を伸ばす。",
+  "conceptEn": "A transparent overdrive nudges the DC-30, while plate reverb lets chords ring out.",
   "amplifier": {
     "name": "Matchbox DC30",
     "settings": [
