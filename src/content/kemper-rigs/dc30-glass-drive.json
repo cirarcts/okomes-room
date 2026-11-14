@@ -1,0 +1,57 @@
+{
+  "name": "Matchbox Glass Drive",
+  "fictional": true,
+  "concept": "透明感のあるオーバードライブでDC-30を軽く押し、プレートリバーブでコードの余韻を伸ばす。",
+  "amplifier": {
+    "name": "Matchbox DC30",
+    "settings": [
+      {
+        "label": "Gain",
+        "value": "4.6"
+      },
+      {
+        "label": "Bass",
+        "value": "0.0"
+      },
+      {
+        "label": "Middle",
+        "value": "+0.7"
+      },
+      {
+        "label": "Treble",
+        "value": "+0.6"
+      },
+      {
+        "label": "Presence",
+        "value": "+0.3"
+      },
+      {
+        "label": "Definition",
+        "value": "6.4"
+      },
+      {
+        "label": "Amp Volume",
+        "value": "0.0 dB"
+      }
+    ]
+  },
+  "cabinet": {
+    "name": "Matchbox 2×12",
+    "settings": [
+      {
+        "label": "Pure Cabinet",
+        "value": "0.7"
+      },
+      {
+        "label": "Low Cut",
+        "value": "78 Hz"
+      },
+      {
+        "label": "High Cut",
+        "value": "8.5 kHz"
+      }
+    ]
+  },
+  "beforeStack": ["Glass Drive"],
+  "afterStack": ["Studio Plate"]
+}

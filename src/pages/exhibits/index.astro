@@ -1,10 +1,43 @@
 ---
-import ComingSoon from '../../components/ComingSoon.astro';
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { withBase } from '../../lib/paths';
 
 const description = '完成した作品、研究成果、インタラクティブな展示物。';
 ---
 
 <BaseLayout title="展示室" description={description}>
-  <ComingSoon title="展示室" subLabel="Exhibits" description={description} />
+  <section class="mx-auto w-full max-w-5xl px-4 py-12 sm:py-20" aria-labelledby="exhibits-title">
+    <header class="mb-8 grid gap-3 sm:mb-10">
+      <p class="text-accent font-mono text-sm tracking-widest" lang="en">
+        Exhibits
+      </p>
+      <h1 id="exhibits-title" class="text-3xl font-bold sm:text-4xl">
+        展示室
+      </h1>
+      <p class="text-muted">{description}</p>
+    </header>
+
+    <ul>
+      <li>
+        <a
+          href={withBase('/exhibits/kemper/')}
+          class="bg-surface hover:bg-subtle border-muted/25 hover:border-accent/60 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-lg border px-5 py-6 transition-colors sm:px-7"
+          aria-labelledby="kemper-entry-title"
+          aria-describedby="kemper-entry-description"
+        >
+          <div class="grid gap-2">
+            <h2 id="kemper-entry-title" class="text-lg font-semibold sm:text-xl" lang="en">
+              Kemper Rig Viewer
+            </h2>
+            <p id="kemper-entry-description" class="text-muted text-sm">
+              Kemper Profilerの音作りの設定を閲覧する展示。
+            </p>
+          </div>
+          <span class="text-accent text-lg" aria-hidden="true">
+            →
+          </span>
+        </a>
+      </li>
+    </ul>
+  </section>
 </BaseLayout>

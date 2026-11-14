@@ -1,0 +1,57 @@
+{
+  "name": "Blackface Spring",
+  "fictional": true,
+  "concept": "軽いコンプレッションをかけたクリーンに、トレモロとスプリングリバーブを重ねたサーフ寄りの音。",
+  "amplifier": {
+    "name": "Blackface Deluxe ’65",
+    "settings": [
+      {
+        "label": "Gain",
+        "value": "2.0"
+      },
+      {
+        "label": "Bass",
+        "value": "+0.5"
+      },
+      {
+        "label": "Middle",
+        "value": "-0.7"
+      },
+      {
+        "label": "Treble",
+        "value": "+0.9"
+      },
+      {
+        "label": "Presence",
+        "value": "+0.2"
+      },
+      {
+        "label": "Definition",
+        "value": "4.3"
+      },
+      {
+        "label": "Amp Volume",
+        "value": "+0.5 dB"
+      }
+    ]
+  },
+  "cabinet": {
+    "name": "Blackface C12K 1×12",
+    "settings": [
+      {
+        "label": "Pure Cabinet",
+        "value": "1.2"
+      },
+      {
+        "label": "Low Cut",
+        "value": "70 Hz"
+      },
+      {
+        "label": "High Cut",
+        "value": "Off"
+      }
+    ]
+  },
+  "beforeStack": ["Soft Comp"],
+  "afterStack": ["Opto Trem", "Spring Tank"]
+}
