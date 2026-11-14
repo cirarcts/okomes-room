@@ -75,10 +75,10 @@
 ### 内部リンクとアセットのパス
 
 GitHub Pages のプロジェクトページは `/<リポジトリ名>/` 配下で配信されるため、**ルート相対パス（`/foo`）を直接書かない**。
-内部リンクやアセットのパスは、[src/lib/paths.ts](../src/lib/paths.ts) の `withBase()` を通して組み立てる。
+言語別ページへのリンクは [src/lib/locale.ts](../src/lib/locale.ts) の `localizedPath()`、共通アセットは [src/lib/paths.ts](../src/lib/paths.ts) の `withBase()` で組み立てる。
 
 ```astro
-<a href={withBase('/exhibits/')}>展示室</a>
+<a href={localizedPath(locale, '/exhibits/')}>{title}</a>
 ```
 
 ### 共通ナビゲーション
@@ -96,7 +96,9 @@ GitHub Pages のプロジェクトページは `/<リポジトリ名>/` 配下�
 | 展示室   | `/exhibits/`   |
 | アトリエ | `/atelier/`    |
 
-末尾スラッシュ付きで統一する（GitHub Pages のディレクトリ配信に合わせる）。
+表のパスは日本語版。英語版は `/en/` 配下に同じ構造で静的生成する。例えばRig詳細は `/exhibits/kemper/<slug>/` と `/en/exhibits/kemper/<slug>/` で、両言語で同じslugと設定データを使う。末尾スラッシュ付きで統一する。
+
+表示言語はURLから決める。言語切り替えは対応ページへのリンクで行い、ブラウザへの設定保存は使わない。ページ本体は `src/views/`、共通文言は [src/lib/messages.ts](../src/lib/messages.ts) で管理する。
 
 ### クライアントJavaScript
 

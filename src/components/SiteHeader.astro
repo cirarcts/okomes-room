@@ -1,8 +1,11 @@
 ---
 import { isActivePath, NAV_ITEMS } from '../lib/navigation';
-import { stripBase, withBase } from '../lib/paths';
+import { getPageLocale, localizedPath, locales } from '../lib/locale';
+import { messages } from '../lib/messages';
 
-const currentPath = stripBase(import.meta.env.BASE_URL, Astro.url.pathname);
+const { locale, path: currentPath } = getPageLocale(Astro.url.pathname);
+const t = messages[locale];
+const languageNames = { ja: '日本語', en: 'English' };
 const isHome = isActivePath(currentPath, '/');
 ---
 
@@ -10,11 +13,12 @@ const isHome = isActivePath(currentPath, '/');
   class="border-surface bg-base/90 sticky top-0 z-40 border-b backdrop-blur-sm"
   data-site-header
 >
-  <div class="mx-auto flex h-14 max-w-5xl items-center justify-between gap-4 px-4">
+  <div class="mx-auto flex h-14 max-w-5xl items-center gap-1 sm:gap-3 px-4">
     <a
-      href={withBase('/')}
+      href={localizedPath(locale, '/')}
+      lang="ja"
       aria-current={isHome ? 'page' : undefined}
-      class="hover:text-accent flex min-h-11 items-center rounded-sm font-bold tracking-wide transition-colors"
+      class="hover:text-accent mr-auto flex min-h-11 items-center rounded-sm font-bold tracking-wide transition-colors"
     >
       okomeのおへや
     </a>
@@ -23,12 +27,12 @@ const isHome = isActivePath(currentPath, '/');
       <>
         <button
           type="button"
-          class="hover:bg-surface text-fg -mr-2 flex size-11 items-center justify-center rounded-md transition-colors md:hidden"
+          class="hover:bg-surface text-fg flex size-11 shrink-0 items-center justify-center rounded-md transition-colors md:hidden"
           aria-expanded="false"
           aria-controls="site-nav"
           data-nav-toggle
         >
-          <span class="sr-only">メニュー</span>
+          <span class="sr-only">{t.menu}</span>
           <svg
             class="size-6"
             viewBox="0 0 24 24"
@@ -45,7 +49,7 @@ const isHome = isActivePath(currentPath, '/');
 
         <nav
           id="site-nav"
-          aria-label="サイト内"
+          aria-label={t.siteNavigation}
           class="max-md:border-surface max-md:bg-base hidden max-md:absolute max-md:inset-x-0 max-md:top-14 max-md:border-b md:block"
           data-nav
         >
@@ -55,7 +59,7 @@ const isHome = isActivePath(currentPath, '/');
               return (
                 <li>
                   <a
-                    href={withBase(item.href)}
+                    href={localizedPath(locale, item.href)}
                     aria-current={isCurrent ? 'page' : undefined}
                     class:list={[
                       'flex min-h-11 items-center gap-3 rounded-md px-3 transition-colors md:flex-col md:justify-center md:gap-0',
@@ -63,10 +67,14 @@ const isHome = isActivePath(currentPath, '/');
                       isCurrent ? 'text-accent' : 'text-muted',
                     ]}
                   >
-                    <span class="text-sm font-medium">{item.label}</span>
-                    <span class="font-mono text-[0.625rem] tracking-widest uppercase">
-                      {item.subLabel}
+                    <span class="text-sm font-medium">
+                      {locale === 'ja' ? item.label : item.subLabel}
                     </span>
+                    {locale === 'ja' && (
+                      <span class="font-mono text-[0.625rem] tracking-widest uppercase" lang="en">
+                        {item.subLabel}
+                      </span>
+                    )}
                   </a>
                 </li>
               );
@@ -75,6 +83,39 @@ const isHome = isActivePath(currentPath, '/');
         </nav>
       </>
     )}
+    <nav class="flex shrink-0 items-center gap-0.5" aria-label={t.language}>
+      <svg
+        class="text-accent mr-1 size-4"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        aria-hidden="true"
+      >
+        <circle cx="12" cy="12" r="9" />
+        <ellipse cx="12" cy="12" rx="4" ry="9" />
+        <path d="M3 12h18" />
+      </svg>
+      {locales.map((language) => (
+        <a
+          href={localizedPath(language, currentPath)}
+          lang={language}
+          hreflang={language}
+          aria-label={languageNames[language]}
+          aria-current={locale === language ? 'page' : undefined}
+          class="text-muted hover:text-fg grid size-11 place-items-center rounded-full text-xs font-semibold"
+        >
+          <span
+            class:list={[
+              'grid h-7 w-9 place-items-center rounded-full border',
+              locale === language ? 'text-fg bg-surface border-violet-400' : 'border-transparent',
+            ]}
+          >
+            {language === 'ja' ? 'JP' : 'EN'}
+          </span>
+        </a>
+      ))}
+    </nav>
   </div>
 </header>
 

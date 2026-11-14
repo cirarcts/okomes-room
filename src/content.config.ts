@@ -61,6 +61,7 @@ const kemperRigs = defineCollection({
     author: z.string().min(1).optional(),
     fictional: z.boolean().default(false),
     concept: z.string().min(1).optional(),
+    conceptEn: z.string().min(1).optional(),
     amplifier: stackModule,
     cabinet: stackModule,
     beforeStack: effectStage(['A', 'B', 'C', 'D']),

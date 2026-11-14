@@ -1,0 +1,122 @@
+---
+import { getCollection } from 'astro:content';
+
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getPageLocale, localizedPath } from '../lib/locale';
+import { messages } from '../lib/messages';
+
+const { locale } = getPageLocale(Astro.url.pathname);
+const t = messages[locale];
+
+const description = t.kemperDescription;
+const rigs = (await getCollection('kemperRigs')).sort((a, b) =>
+  a.data.name.localeCompare(b.data.name, 'en'),
+);
+---
+
+<BaseLayout title="Kemper Rig Viewer" description={description}>
+  <section class="mx-auto w-full max-w-5xl px-4 py-8 sm:py-14" aria-labelledby="kemper-title">
+    <a
+      href={localizedPath(locale, '/exhibits/')}
+      class="text-accent hover:text-fg mb-4 inline-flex min-h-11 items-center gap-2 rounded-sm text-sm underline-offset-4 hover:underline"
+    >
+      <span aria-hidden="true">←</span>
+      {t.backToExhibits}
+    </a>
+    <h1 id="kemper-title" class="mb-6 text-2xl font-bold sm:text-4xl" lang="en">
+      Kemper Rig Viewer
+    </h1>
+    <div id="rig-filter" class="mb-5" hidden>
+      <label for="rig-query" class="mb-2 block text-sm font-semibold">
+        {t.searchRigs}
+      </label>
+      <input
+        id="rig-query"
+        type="search"
+        placeholder={t.searchPlaceholder}
+        class="bg-surface border-muted/40 min-h-11 w-full max-w-md rounded-md border px-3"
+      />
+      <p
+        id="rig-count"
+        role="status"
+        class="text-muted mt-2 text-sm"
+        data-empty={t.noRigsFound}
+        data-singular={locale === 'en' ? '1 Rig' : t.rigCount.replace('{count}', '1')}
+        data-count={t.rigCount}
+      ></p>
+    </div>
+
+    <ul class="grid auto-rows-fr gap-3 sm:grid-cols-2">
+      {rigs.map(({ id, data: rig }) => (
+        <li
+          id={`rig-${id}`}
+          class="scroll-mt-24"
+          data-rig-card
+          data-search={[
+            rig.name,
+            rig.author,
+            rig.amplifier.name,
+            rig.cabinet.name,
+            rig.concept,
+            rig.conceptEn,
+            ...[...rig.beforeStack, ...rig.afterStack].map((effect) =>
+              typeof effect === 'string' ? effect : effect.name,
+            ),
+          ]
+            .filter(Boolean)
+            .join(' ')}
+        >
+          <a
+            href={localizedPath(locale, `/exhibits/kemper/${id}/`)}
+            class="bg-surface hover:bg-subtle border-muted/25 hover:border-accent/60 grid h-full content-start gap-2 rounded-lg border p-5 transition-colors"
+          >
+            <h2 class="text-lg font-semibold" lang="en">
+              {rig.name}
+            </h2>
+            <p class="text-accent font-mono text-sm" lang="en">
+              {rig.amplifier.name}
+            </p>
+            {(locale === 'en' ? rig.conceptEn : rig.concept) && (
+              <p class="text-muted line-clamp-2 min-h-[2lh] text-sm">
+                {locale === 'en' ? rig.conceptEn : rig.concept}
+              </p>
+            )}
+            {rig.fictional && <p class="text-muted text-xs">{t.fictionalRig}</p>}
+          </a>
+        </li>
+      ))}
+    </ul>
+  </section>
+</BaseLayout>
+
+<script>
+  const filter = document.querySelector<HTMLElement>('#rig-filter');
+  const query = document.querySelector<HTMLInputElement>('#rig-query');
+  const count = document.querySelector<HTMLElement>('#rig-count');
+  const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-rig-card]'), (card) => ({
+    card,
+    search: (card.dataset.search ?? '').normalize('NFKC').toLowerCase(),
+  }));
+
+  if (filter && query && count && cards.length > 0) {
+    const updateResults = () => {
+      const terms = query.value.normalize('NFKC').toLowerCase().trim().split(/\s+/).filter(Boolean);
+      let matches = 0;
+      for (const { card, search } of cards) {
+        card.hidden = !terms.every((term) => search.includes(term));
+        if (!card.hidden) matches++;
+      }
+      count.textContent =
+        (matches === 0
+          ? count.dataset.empty
+          : matches === 1
+            ? count.dataset.singular
+            : count.dataset.count?.replace('{count}', String(matches))) ?? '';
+    };
+
+    filter.hidden = false;
+    updateResults();
+    query.addEventListener('input', updateResults);
+    window.addEventListener('pageshow', updateResults);
+  }
+</script>

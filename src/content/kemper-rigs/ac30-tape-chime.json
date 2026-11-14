@@ -2,6 +2,7 @@
   "name": "AC Tape Crunch",
   "fictional": true,
   "concept": "軽く歪むところに合わせたTop Boostを土台に、テープエコー風の短い反復を足したアルペジオ向けの音。",
+  "conceptEn": "Top Boost set just at the edge of breakup, with short tape echoes for arpeggios.",
   "amplifier": {
     "name": "AC30 Top Boost",
     "settings": [

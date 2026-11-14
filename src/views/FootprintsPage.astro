@@ -1,0 +1,21 @@
+---
+import ComingSoon from '../components/ComingSoon.astro';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getPageLocale } from '../lib/locale';
+import { messages } from '../lib/messages';
+
+const { locale } = getPageLocale(Astro.url.pathname);
+const t = messages[locale];
+
+const description = t.footprintsDescription;
+const title = locale === 'ja' ? 'あしあと' : 'Footprints';
+---
+
+<BaseLayout title={title} description={description}>
+  <ComingSoon
+    title={title}
+    subLabel={locale === 'ja' ? 'Footprints' : undefined}
+    description={description}
+    status={t.comingSoon}
+  />
+</BaseLayout>

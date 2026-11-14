@@ -2,6 +2,7 @@
   "name": "Gundy - Brown Sound",
   "author": "Gundy Keller",
   "concept": "Gundy Keller Rig PackのRig。Treble BoosterからLegacy Reverbまで、アンプの前後に4スロットずつエフェクトを配置。",
+  "conceptEn": "From the Gundy Keller Rig Pack, with four effects before the amp and four after, from Treble Booster to Legacy Reverb.",
   "amplifier": {
     "name": "Mars TM Forty-Five",
     "settings": [

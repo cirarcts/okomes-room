@@ -2,6 +2,7 @@
   "name": "Brit 800 Crunch",
   "fictional": true,
   "concept": "中域を押し出した、歯切れのいいハードロックのクランチ。低域を抑え、短い残響でリフの輪郭を残す。",
+  "conceptEn": "A punchy hard rock crunch with prominent mids, trimmed lows, and a short reverb that keeps riffs clear.",
   "amplifier": {
     "name": "Brit 800 2203",
     "settings": [
