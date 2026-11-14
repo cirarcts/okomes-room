@@ -19,8 +19,6 @@ const isHome = isActivePath(currentPath, '/');
       okomeのおへや
     </a>
 
-    {isHome && <slot />}
-
     {!isHome && (
       <>
         <button
