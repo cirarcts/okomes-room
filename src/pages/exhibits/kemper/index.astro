@@ -19,222 +19,85 @@ const rigs = (await getCollection('kemperRigs')).sort((a, b) =>
       <span aria-hidden="true">←</span>
       展示室に戻る
     </a>
-
     <h1 id="kemper-title" class="mb-6 text-2xl font-bold sm:text-4xl" lang="en">
       Kemper Rig Viewer
     </h1>
+    <div id="rig-filter" class="mb-5" hidden>
+      <label for="rig-query" class="mb-2 block text-sm font-semibold">
+        Rigを検索
+      </label>
+      <input
+        id="rig-query"
+        type="search"
+        placeholder="Rig名、アンプ名、エフェクトなど"
+        class="bg-surface border-muted/40 min-h-11 w-full max-w-md rounded-md border px-3"
+      />
+      <p id="rig-count" role="status" class="text-muted mt-2 text-sm"></p>
+    </div>
 
-    {rigs.length > 1 && (
-      <nav class="mb-7" aria-label="Rig一覧">
-        <ul class="flex flex-wrap gap-2">
-          {rigs.map(({ id, data: rig }) => (
-            <li>
-              <a
-                href={`#rig-${id}`}
-                class="border-muted/25 bg-surface hover:border-accent/60 inline-flex min-h-11 items-center rounded-md border px-3 text-sm"
-                lang="en"
-              >
-                {rig.name}
-              </a>
-            </li>
-          ))}
-        </ul>
-      </nav>
-    )}
-
-    <div class="grid gap-8">
+    <ul class="grid auto-rows-fr gap-3 sm:grid-cols-2">
       {rigs.map(({ id, data: rig }) => (
-        <article class="rig" aria-labelledby={`rig-${id}`}>
-          <div class="rig-display">
-            <h2 id={`rig-${id}`} class="scroll-mt-24 text-xl font-semibold sm:text-3xl" lang="en">
+        <li
+          id={`rig-${id}`}
+          class="scroll-mt-24"
+          data-rig-card
+          data-search={[
+            rig.name,
+            rig.author,
+            rig.amplifier.name,
+            rig.cabinet.name,
+            rig.concept,
+            ...[...rig.beforeStack, ...rig.afterStack].map((effect) =>
+              typeof effect === 'string' ? effect : effect.name,
+            ),
+          ]
+            .filter(Boolean)
+            .join(' ')}
+        >
+          <a
+            href={withBase(`/exhibits/kemper/${id}/`)}
+            class="bg-surface hover:bg-subtle border-muted/25 hover:border-accent/60 grid h-full content-start gap-2 rounded-lg border p-5 transition-colors"
+          >
+            <h2 class="text-lg font-semibold" lang="en">
               {rig.name}
             </h2>
-            {rig.fictional && <p class="rig-credit text-sm">架空のRig</p>}
-            {rig.author && <p class="rig-credit text-sm">{rig.author}</p>}
-          </div>
-          {rig.concept && <p class="rig-credit text-sm">{rig.concept}</p>}
-
-          <section class="rig-chain" aria-labelledby={`chain-${id}`}>
-            <h3 id={`chain-${id}`} class="text-sm font-semibold">
-              信号の流れ
-            </h3>
-            <ol class="chain-stages" lang="en">
-              <li class="chain-edge">Input</li>
-              <li class="chain-stage">
-                <span class="stage-label">Stomps</span>
-                <span>{rig.beforeStack.join(' → ')}</span>
-              </li>
-              <li class="chain-stage chain-stack">
-                <span class="stage-label">Stack</span>
-                <span>Amplifier → Cabinet</span>
-              </li>
-              <li class="chain-stage">
-                <span class="stage-label">Effects</span>
-                <span>{rig.afterStack.join(' → ')}</span>
-              </li>
-              <li class="chain-edge">Output</li>
-            </ol>
-          </section>
-
-          <div class="rig-modules" lang="en">
-            {[
-              { label: 'Amplifier', module: rig.amplifier },
-              { label: 'Cabinet', module: rig.cabinet },
-            ].map(({ label, module }, index) => (
-              <details open={index === 0}>
-                <summary>
-                  <span class="module-label">{label}</span>
-                  <span class="module-name">{module.name}</span>
-                </summary>
-                <dl>
-                  {module.settings.map(({ label, value }) => (
-                    <div>
-                      <dt>{label}</dt>
-                      <dd>{value}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </details>
-            ))}
-          </div>
-        </article>
+            <p class="text-accent font-mono text-sm" lang="en">
+              {rig.amplifier.name}
+            </p>
+            {rig.concept && (
+              <p class="text-muted line-clamp-2 min-h-[2lh] text-sm">{rig.concept}</p>
+            )}
+            {rig.fictional && <p class="text-muted text-xs">架空のRig</p>}
+          </a>
+        </li>
       ))}
-    </div>
+    </ul>
   </section>
 </BaseLayout>
 
-<style>
-  .rig {
-    --panel: #1b211f;
-    --recess: #101613;
-    --edge: #3d4c44;
-    --signal: #a8e7bf;
-    --secondary: #b0c2b7;
-    display: grid;
-    gap: 1.5rem;
-    border: 1px solid var(--edge);
-    border-radius: 0.75rem;
-    padding: clamp(0.75rem, 3vw, 1.75rem);
-    background: linear-gradient(150deg, var(--panel), var(--recess));
-  }
+<script>
+  const filter = document.querySelector<HTMLElement>('#rig-filter');
+  const query = document.querySelector<HTMLInputElement>('#rig-query');
+  const count = document.querySelector<HTMLElement>('#rig-count');
+  const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-rig-card]'), (card) => ({
+    card,
+    search: (card.dataset.search ?? '').normalize('NFKC').toLowerCase(),
+  }));
 
-  .rig-display {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 0.5rem 1.5rem;
-    padding: clamp(0.85rem, 3vw, 1.4rem);
-    border: 1px solid var(--edge);
-    border-radius: 0.4rem;
-    background: var(--recess);
-    color: var(--signal);
-    font-family: var(--font-mono);
-  }
+  if (filter && query && count && cards.length > 0) {
+    const updateResults = () => {
+      const terms = query.value.normalize('NFKC').toLowerCase().trim().split(/\s+/).filter(Boolean);
+      let matches = 0;
+      for (const { card, search } of cards) {
+        card.hidden = !terms.every((term) => search.includes(term));
+        if (!card.hidden) matches++;
+      }
+      count.textContent = matches === 0 ? '該当するRigはありません。' : `${matches}件のRig`;
+    };
 
-  .rig-credit,
-  .stage-label,
-  .rig-modules dt,
-  .module-name {
-    color: var(--secondary);
+    filter.hidden = false;
+    updateResults();
+    query.addEventListener('input', updateResults);
+    window.addEventListener('pageshow', updateResults);
   }
-
-  .rig-chain {
-    display: grid;
-    gap: 0.6rem;
-  }
-
-  .chain-stages {
-    display: grid;
-    gap: 0.4rem;
-    align-items: stretch;
-    font-size: 0.8125rem;
-  }
-
-  .chain-edge,
-  .chain-stage {
-    display: grid;
-    align-content: center;
-    gap: 0.25rem;
-    padding: 0.55rem 0.7rem;
-    border: 1px solid var(--edge);
-    border-radius: 0.35rem;
-  }
-
-  .chain-edge,
-  .stage-label {
-    font-family: var(--font-mono);
-  }
-
-  .chain-stack {
-    border-color: color-mix(in srgb, var(--signal) 45%, var(--edge));
-    color: var(--signal);
-  }
-
-  .rig-modules {
-    display: grid;
-    gap: 0.6rem;
-  }
-
-  .rig-modules details {
-    border: 1px solid var(--edge);
-    border-radius: 0.4rem;
-    background: var(--panel);
-  }
-
-  .rig-modules summary {
-    min-height: 44px;
-    padding: 0.75rem;
-    border-radius: 0.35rem;
-    cursor: pointer;
-    overflow-wrap: anywhere;
-  }
-
-  .rig-modules summary:hover,
-  .rig-modules details[open] summary {
-    color: var(--signal);
-  }
-
-  .module-label {
-    font-weight: 600;
-  }
-
-  .module-name {
-    margin-inline-start: 0.45rem;
-    font-size: 0.875rem;
-  }
-
-  .rig-modules dl {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 7rem), 1fr));
-    border-top: 1px solid var(--edge);
-  }
-
-  .rig-modules dl > div {
-    display: grid;
-    align-content: start;
-    gap: 0.25rem;
-    min-width: 0;
-    padding: 0.7rem 0.75rem;
-    box-shadow: inset -1px -1px var(--edge);
-  }
-
-  .rig-modules dt {
-    font-size: 0.8125rem;
-    overflow-wrap: anywhere;
-  }
-
-  .rig-modules dd {
-    color: var(--signal);
-    font-family: var(--font-mono);
-    font-size: 0.9375rem;
-    font-variant-numeric: tabular-nums;
-    overflow-wrap: anywhere;
-  }
-
-  @media (min-width: 48rem) {
-    .chain-stages {
-      grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr) auto;
-    }
-  }
-</style>
+</script>

@@ -26,6 +26,7 @@ const pageTitle = title ? `${title} | ${SITE_NAME}` : SITE_NAME;
     <meta name="generator" content={Astro.generator} />
     <link rel="icon" type="image/svg+xml" href={withBase('/favicon.svg')} />
     <title>{pageTitle}</title>
+    <slot name="head" />
     <!-- JavaScriptが無効でもナビゲーションを使えるよう、スマートフォン用メニューを常時表示にする -->
     <noscript>
       <style>

@@ -1,0 +1,479 @@
+{
+  "name": "Gundy - Brown Sound",
+  "author": "Gundy Keller",
+  "concept": "Gundy Keller Rig PackのRig。Treble BoosterからLegacy Reverbまで、アンプの前後に4スロットずつエフェクトを配置。",
+  "amplifier": {
+    "name": "Mars TM Forty-Five",
+    "settings": [
+      {
+        "label": "Gain",
+        "value": "3.4"
+      },
+      {
+        "label": "Bass",
+        "value": "+3.2"
+      },
+      {
+        "label": "Middle",
+        "value": "+1.0"
+      },
+      {
+        "label": "Treble",
+        "value": "-1.2"
+      },
+      {
+        "label": "Presence",
+        "value": "+3.0"
+      },
+      {
+        "label": "EQ Position",
+        "value": "Post"
+      },
+      {
+        "label": "Definition",
+        "value": "1.8"
+      },
+      {
+        "label": "Power Sagging",
+        "value": "2.3"
+      },
+      {
+        "label": "Pick",
+        "value": "-2.5"
+      },
+      {
+        "label": "Compressor",
+        "value": "0.0"
+      },
+      {
+        "label": "Clarity",
+        "value": "0.0"
+      },
+      {
+        "label": "Tube Shape",
+        "value": "3.3"
+      },
+      {
+        "label": "Tube Bias",
+        "value": "10.0"
+      },
+      {
+        "label": "Direct Mix",
+        "value": "0.0"
+      },
+      {
+        "label": "Generic Gain",
+        "value": "3.4"
+      },
+      {
+        "label": "Amp Model",
+        "value": "Kemper Generic"
+      },
+      {
+        "label": "BrightCap Int.",
+        "value": "10.0"
+      },
+      {
+        "label": "Clean Comp.",
+        "value": "10.0"
+      },
+      {
+        "label": "Amp Volume",
+        "value": "-2.2 dB"
+      }
+    ]
+  },
+  "cabinet": {
+    "name": "Mars Nineteen Eighty-Seven",
+    "settings": [
+      {
+        "label": "Pure Cabinet",
+        "value": "0.0"
+      },
+      {
+        "label": "High Shift",
+        "value": "-0.0"
+      },
+      {
+        "label": "Low Shift",
+        "value": "<0.0>"
+      },
+      {
+        "label": "Character",
+        "value": "-2.7"
+      },
+      {
+        "label": "Low Cut",
+        "value": "Off"
+      },
+      {
+        "label": "High Cut",
+        "value": "Off"
+      },
+      {
+        "label": "Imprint Select",
+        "value": "Celest G12M Greenback"
+      }
+    ]
+  },
+  "beforeStack": [
+    {
+      "slot": "A",
+      "name": "Treble Booster",
+      "enabled": true,
+      "parameters": [
+        {
+          "label": "Tone",
+          "value": "5.0"
+        },
+        {
+          "label": "Mix",
+          "value": "100%"
+        },
+        {
+          "label": "Ducking",
+          "value": "<0.0>"
+        },
+        {
+          "label": "Volume",
+          "value": "+0.1"
+        }
+      ]
+    },
+    {
+      "slot": "B",
+      "name": "Graphic Equalizer",
+      "enabled": true,
+      "parameters": [
+        {
+          "label": "63 Hz",
+          "value": "5.3 dB"
+        },
+        {
+          "label": "125 Hz",
+          "value": "7.0 dB"
+        },
+        {
+          "label": "250 Hz",
+          "value": "7.3 dB"
+        },
+        {
+          "label": "500 Hz",
+          "value": "4.7 dB"
+        },
+        {
+          "label": "1.0 kHz",
+          "value": "0.0 dB"
+        },
+        {
+          "label": "2.0 kHz",
+          "value": "0.9 dB"
+        },
+        {
+          "label": "4.0 kHz",
+          "value": "5.0 dB"
+        },
+        {
+          "label": "8.0 kHz",
+          "value": "6.9 dB"
+        },
+        {
+          "label": "Low Cut",
+          "value": "Off"
+        },
+        {
+          "label": "High Cut",
+          "value": "Off"
+        },
+        {
+          "label": "Volume",
+          "value": "+0.0"
+        },
+        {
+          "label": "Mix",
+          "value": "100%"
+        },
+        {
+          "label": "Ducking",
+          "value": "+5.0"
+        }
+      ]
+    },
+    {
+      "slot": "C",
+      "name": "Phaser",
+      "enabled": true,
+      "parameters": [
+        {
+          "label": "Tempo Sync",
+          "value": true
+        },
+        {
+          "label": "Rate",
+          "value": "3.8 Bars"
+        },
+        {
+          "label": "Depth",
+          "value": "7.3"
+        },
+        {
+          "label": "Manual",
+          "value": "1.3"
+        },
+        {
+          "label": "Feedback",
+          "value": "0%"
+        },
+        {
+          "label": "Peak Spread",
+          "value": "+0.2"
+        },
+        {
+          "label": "Stages",
+          "value": "4"
+        },
+        {
+          "label": "Mix",
+          "value": "100%"
+        },
+        {
+          "label": "Ducking",
+          "value": "<0.0>"
+        },
+        {
+          "label": "Volume",
+          "value": "<0.0>"
+        }
+      ]
+    },
+    {
+      "slot": "D",
+      "name": "Noise Gate 2:1",
+      "enabled": true,
+      "parameters": [
+        {
+          "label": "Threshold",
+          "value": "3.8"
+        }
+      ]
+    }
+  ],
+  "afterStack": [
+    {
+      "slot": "X",
+      "name": "Graphic Equalizer",
+      "enabled": true,
+      "parameters": [
+        {
+          "label": "63 Hz",
+          "value": "0.0 dB"
+        },
+        {
+          "label": "125 Hz",
+          "value": "-4.5 dB"
+        },
+        {
+          "label": "250 Hz",
+          "value": "0.0 dB"
+        },
+        {
+          "label": "500 Hz",
+          "value": "0.0 dB"
+        },
+        {
+          "label": "1.0 kHz",
+          "value": "0.0 dB"
+        },
+        {
+          "label": "2.0 kHz",
+          "value": "0.0 dB"
+        },
+        {
+          "label": "4.0 kHz",
+          "value": "0.0 dB"
+        },
+        {
+          "label": "8.0 kHz",
+          "value": "0.0 dB"
+        },
+        {
+          "label": "Low Cut",
+          "value": "Off"
+        },
+        {
+          "label": "High Cut",
+          "value": "Off"
+        },
+        {
+          "label": "Volume",
+          "value": "-1.8"
+        },
+        {
+          "label": "Mix",
+          "value": "100%"
+        },
+        {
+          "label": "Ducking",
+          "value": "<0.0>"
+        }
+      ]
+    },
+    {
+      "slot": "MOD",
+      "name": "Air Chorus",
+      "enabled": true,
+      "parameters": [
+        {
+          "label": "Depth",
+          "value": "3.1"
+        },
+        {
+          "label": "Crossover",
+          "value": "27.0 Hz"
+        },
+        {
+          "label": "Stereo",
+          "value": "+90°"
+        },
+        {
+          "label": "Volume",
+          "value": "<0.0>"
+        }
+      ]
+    },
+    {
+      "slot": "DLY",
+      "name": "TwoTap Delay",
+      "enabled": true,
+      "parameters": [
+        {
+          "label": "Mix",
+          "value": "67.5%"
+        },
+        {
+          "label": "Position (Mix)",
+          "value": "Post"
+        },
+        {
+          "label": "Delay 1 Time",
+          "value": "24 ms"
+        },
+        {
+          "label": "Delay 2 Ratio",
+          "value": "25.0%"
+        },
+        {
+          "label": "Tempo Sync",
+          "value": false
+        },
+        {
+          "label": "Feedback",
+          "value": "0%"
+        },
+        {
+          "label": "Infinity",
+          "value": "Off"
+        },
+        {
+          "label": "Freeze",
+          "value": false
+        },
+        {
+          "label": "Low Cut",
+          "value": "38.1 Hz"
+        },
+        {
+          "label": "High Cut",
+          "value": "33488.1 Hz"
+        },
+        {
+          "label": "Cut",
+          "value": "Normal"
+        },
+        {
+          "label": "Reverse Mix",
+          "value": "0%"
+        },
+        {
+          "label": "Stereo",
+          "value": "100%"
+        },
+        {
+          "label": "Chorus",
+          "value": "0.0"
+        },
+        {
+          "label": "Modulation",
+          "value": "0.0"
+        },
+        {
+          "label": "Flutter Int.",
+          "value": "0.0"
+        },
+        {
+          "label": "Flutter Rate",
+          "value": "5.0"
+        },
+        {
+          "label": "Grit",
+          "value": "0.0"
+        },
+        {
+          "label": "Input Swell",
+          "value": "0%"
+        },
+        {
+          "label": "Smear",
+          "value": "0%"
+        },
+        {
+          "label": "Ducking",
+          "value": "<0.0>"
+        },
+        {
+          "label": "Position (Ducking)",
+          "value": "Post"
+        }
+      ]
+    },
+    {
+      "slot": "REV",
+      "name": "Legacy Reverb",
+      "enabled": true,
+      "parameters": [
+        {
+          "label": "Decay Time",
+          "value": "2.410 s"
+        },
+        {
+          "label": "Room Size",
+          "value": "Hall"
+        },
+        {
+          "label": "Predelay",
+          "value": "27 ms"
+        },
+        {
+          "label": "Mix",
+          "value": "15.3%"
+        },
+        {
+          "label": "High Damp",
+          "value": "1.9"
+        },
+        {
+          "label": "Bandwidth",
+          "value": "2.8"
+        },
+        {
+          "label": "Mid Frequency",
+          "value": "-0.9"
+        },
+        {
+          "label": "Ducking",
+          "value": "<0.0>"
+        }
+      ]
+    }
+  ]
+}
