@@ -1,0 +1,312 @@
+---
+import { getCollection, type CollectionEntry } from 'astro:content';
+
+import EffectStage from '../../../components/kemper/EffectStage.astro';
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { withBase } from '../../../lib/paths';
+
+export async function getStaticPaths() {
+  return (await getCollection('kemperRigs')).map(({ id, data }) => ({
+    params: { slug: id },
+    props: { rig: data },
+  }));
+}
+
+interface Props {
+  rig: CollectionEntry<'kemperRigs'>['data'];
+}
+
+const { rig } = Astro.props;
+const title = `${rig.name} | Kemper Rig Viewer`;
+const description = `${rig.fictional ? '架空のRig。' : ''}${rig.concept ?? `${rig.amplifier.name}の設定を閲覧できます。`}`;
+---
+
+<BaseLayout title={title} description={description}>
+  <Fragment slot="head">
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    {Astro.site && <meta property="og:url" content={Astro.url.href} />}
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+  </Fragment>
+
+  <section class="mx-auto w-full max-w-5xl px-4 py-8 sm:py-14" aria-labelledby="rig-title">
+    <a
+      href={withBase('/exhibits/kemper/')}
+      class="text-accent hover:text-fg mb-4 inline-flex min-h-11 items-center gap-2 rounded-sm text-sm underline-offset-4 hover:underline"
+    >
+      <span aria-hidden="true">←</span>
+      Rig一覧に戻る
+    </a>
+
+    <article class="rig" data-rig-details>
+      <header class="rig-display">
+        <h1 id="rig-title" class="text-xl font-semibold sm:text-3xl" lang="en">
+          {rig.name}
+        </h1>
+        {rig.fictional && <p class="rig-credit text-sm">架空のRig</p>}
+        {rig.author && <p class="rig-credit text-sm">{rig.author}</p>}
+      </header>
+      {rig.concept && <p class="rig-credit text-sm">{rig.concept}</p>}
+      <section class="rig-chain" aria-labelledby="rig-chain-title">
+        <h2 id="rig-chain-title" class="text-sm font-semibold">
+          信号の流れ
+        </h2>
+        <ol class="chain-stages">
+          <li class="chain-edge" lang="en">
+            Input
+          </li>
+          <li class="chain-stage">
+            <span class="stage-label" lang="en">
+              Stomps
+            </span>
+            <span>
+              {rig.beforeStack
+                .map((effect) => (typeof effect === 'string' ? effect : effect.name))
+                .filter(Boolean)
+                .join(' → ') || '未設定'}
+            </span>
+          </li>
+          <li class="chain-stage chain-stack">
+            <span class="stage-label" lang="en">
+              Stack
+            </span>
+            <span lang="en">Amplifier → Cabinet</span>
+          </li>
+          <li class="chain-stage">
+            <span class="stage-label" lang="en">
+              Effects
+            </span>
+            <span>
+              {rig.afterStack
+                .map((effect) => (typeof effect === 'string' ? effect : effect.name))
+                .filter(Boolean)
+                .join(' → ') || '未設定'}
+            </span>
+          </li>
+          <li class="chain-edge" lang="en">
+            Output
+          </li>
+        </ol>
+      </section>
+
+      <div data-rig-panel-actions hidden>
+        <div class="flex flex-wrap gap-2" role="group" aria-label="設定パネルの一括操作">
+          <button type="button" class="panel-action" data-open-panels>
+            すべて開く
+          </button>
+          <button type="button" class="panel-action" data-close-panels>
+            すべて閉じる
+          </button>
+        </div>
+      </div>
+
+      <div class="rig-modules" lang="en">
+        {[
+          { label: 'Amplifier', module: rig.amplifier },
+          { label: 'Cabinet', module: rig.cabinet },
+        ].map(({ label, module }) => (
+          <details open>
+            <summary>
+              <span class="module-label">{label}</span>
+              <span class="module-name">{module.name}</span>
+            </summary>
+            <dl>
+              {module.settings.map(({ label, value }) => (
+                <div>
+                  <dt>{label}</dt>
+                  <dd>{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </details>
+        ))}
+      </div>
+      <div class="effect-settings">
+        <EffectStage label="Stomps" effects={rig.beforeStack} />
+        <EffectStage label="Effects" effects={rig.afterStack} />
+      </div>
+    </article>
+  </section>
+</BaseLayout>
+
+<script>
+  const rig = document.querySelector('[data-rig-details]');
+  const actions = rig?.querySelector<HTMLElement>('[data-rig-panel-actions]');
+  const openButton = actions?.querySelector('[data-open-panels]');
+  const closeButton = actions?.querySelector('[data-close-panels]');
+
+  if (rig && actions && openButton && closeButton) {
+    const panels = rig.querySelectorAll('details');
+    const setPanelsOpen = (open: boolean) => {
+      for (const panel of panels) panel.open = open;
+    };
+    openButton.addEventListener('click', () => setPanelsOpen(true));
+    closeButton.addEventListener('click', () => setPanelsOpen(false));
+    actions.hidden = false;
+  }
+</script>
+
+<style>
+  .rig {
+    --panel: #1b211f;
+    --recess: #101613;
+    --edge: #3d4c44;
+    --signal: #a8e7bf;
+    --secondary: #b0c2b7;
+    display: grid;
+    gap: 1.5rem;
+    border: 1px solid var(--edge);
+    border-radius: 0.75rem;
+    padding: clamp(0.75rem, 3vw, 1.75rem);
+    background: linear-gradient(150deg, var(--panel), var(--recess));
+  }
+
+  .rig-display {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem 1.5rem;
+    padding: clamp(0.85rem, 3vw, 1.4rem);
+    border: 1px solid var(--edge);
+    border-radius: 0.4rem;
+    background: var(--recess);
+    color: var(--signal);
+    font-family: var(--font-mono);
+  }
+
+  .rig-credit,
+  .stage-label,
+  .rig-modules dt,
+  .module-name {
+    color: var(--secondary);
+  }
+
+  .rig-chain {
+    display: grid;
+    gap: 0.6rem;
+  }
+
+  .chain-stages {
+    display: grid;
+    gap: 0.4rem;
+    align-items: stretch;
+    font-size: 0.8125rem;
+  }
+
+  .chain-edge,
+  .chain-stage {
+    display: grid;
+    align-content: center;
+    gap: 0.25rem;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--edge);
+    border-radius: 0.35rem;
+  }
+
+  .chain-edge,
+  .stage-label {
+    font-family: var(--font-mono);
+  }
+
+  .chain-stack {
+    border-color: color-mix(in srgb, var(--signal) 45%, var(--edge));
+    color: var(--signal);
+  }
+
+  .rig-modules {
+    display: grid;
+    gap: 0.6rem;
+  }
+
+  .panel-action {
+    min-height: 44px;
+    border: 1px solid var(--edge);
+    border-radius: 0.4rem;
+    padding-inline: 0.8rem;
+    background: var(--panel);
+    color: var(--signal);
+    font-size: 0.875rem;
+    cursor: pointer;
+  }
+
+  .panel-action:hover {
+    border-color: var(--signal);
+    background: var(--recess);
+  }
+
+  .rig-modules details {
+    border: 1px solid var(--edge);
+    border-radius: 0.4rem;
+    background: var(--panel);
+  }
+
+  .rig-modules summary {
+    min-height: 44px;
+    padding: 0.75rem;
+    border-radius: 0.35rem;
+    cursor: pointer;
+    overflow-wrap: anywhere;
+  }
+
+  .rig-modules summary:hover,
+  .rig-modules details[open] summary {
+    color: var(--signal);
+  }
+
+  .module-label {
+    font-weight: 600;
+  }
+
+  .module-name {
+    margin-inline-start: 0.45rem;
+    font-size: 0.875rem;
+  }
+
+  .rig-modules dl {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 7rem), 1fr));
+    border-top: 1px solid var(--edge);
+  }
+
+  .rig-modules dl > div {
+    display: grid;
+    align-content: start;
+    gap: 0.25rem;
+    min-width: 0;
+    padding: 0.7rem 0.75rem;
+    box-shadow: inset -1px -1px var(--edge);
+  }
+
+  .rig-modules dt {
+    font-size: 0.8125rem;
+    overflow-wrap: anywhere;
+  }
+
+  .rig-modules dd {
+    color: var(--signal);
+    font-family: var(--font-mono);
+    font-size: 0.9375rem;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+
+  .effect-settings {
+    display: grid;
+    gap: 1rem;
+  }
+
+  @media (min-width: 48rem) {
+    .effect-settings {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-items: start;
+    }
+
+    .chain-stages {
+      grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr) auto;
+    }
+  }
+</style>

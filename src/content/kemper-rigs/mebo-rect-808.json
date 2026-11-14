@@ -52,6 +52,54 @@
       }
     ]
   },
-  "beforeStack": ["Green Scream"],
-  "afterStack": ["Graphic EQ", "Short Room"]
+  "beforeStack": [
+    {
+      "slot": "A",
+      "name": "Green Scream",
+      "enabled": true,
+      "parameters": [
+        {
+          "label": "Drive",
+          "value": 0
+        },
+        {
+          "label": "Tone",
+          "value": 1.5
+        },
+        {
+          "label": "Volume",
+          "value": 2.5,
+          "unit": "dB"
+        }
+      ]
+    },
+    {
+      "slot": "B",
+      "name": null
+    }
+  ],
+  "afterStack": [
+    {
+      "slot": "X",
+      "name": "Graphic EQ",
+      "enabled": false
+    },
+    {
+      "slot": "REV",
+      "name": "Short Room",
+      "enabled": true,
+      "parameters": [
+        {
+          "label": "Mix",
+          "value": 8,
+          "unit": "%"
+        },
+        {
+          "label": "Decay Time",
+          "value": 0.6,
+          "unit": "s"
+        }
+      ]
+    }
+  ]
 }

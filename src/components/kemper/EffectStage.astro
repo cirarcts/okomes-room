@@ -1,0 +1,176 @@
+---
+import type { CollectionEntry } from 'astro:content';
+
+type Rig = CollectionEntry<'kemperRigs'>['data'];
+
+interface Props {
+  label: string;
+  effects: Rig['beforeStack'] | Rig['afterStack'];
+}
+
+const { label, effects } = Astro.props;
+---
+
+<section class="effect-group" aria-label={label}>
+  <h2 class="stage-heading" lang="en">
+    {label}
+  </h2>
+  {effects.length === 0 && <p class="text-sm">未設定</p>}
+  {effects.length > 0 && (
+    <ol class="effect-slots">
+      {effects.map((effect) => (
+        <li>
+          {typeof effect === 'string' ? (
+            <div class="slot slot-static">
+              <span lang="en">{effect}</span>
+              <span class="slot-status">設定未取得</span>
+            </div>
+          ) : effect.name === null ? (
+            <div class="slot slot-static">
+              <span class="slot-position" lang="en">
+                {effect.slot}
+              </span>
+              <span>未設定</span>
+            </div>
+          ) : (
+            <details class="slot">
+              <summary>
+                <span class="slot-position" lang="en">
+                  {effect.slot}
+                </span>
+                <span lang="en">{effect.name}</span>
+                <span class="slot-status" data-enabled={effect.enabled}>
+                  {effect.enabled === undefined ? '状態未取得' : effect.enabled ? 'ON' : 'OFF'}
+                </span>
+              </summary>
+              {effect.parameters?.length ? (
+                <dl>
+                  {effect.parameters.map(({ label, value, unit }) => (
+                    <div>
+                      <dt lang="en">{label}</dt>
+                      <dd>
+                        {value === null
+                          ? '未設定'
+                          : typeof value === 'boolean'
+                            ? value
+                              ? 'ON'
+                              : 'OFF'
+                            : typeof value === 'number' && unit
+                              ? `${value} ${unit}`
+                              : value}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : (
+                <p class="parameter-empty">{effect.parameters ? '設定項目なし' : '設定未取得'}</p>
+              )}
+            </details>
+          )}
+        </li>
+      ))}
+    </ol>
+  )}
+</section>
+
+<style>
+  .effect-group {
+    display: grid;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .stage-heading,
+  .slot-status,
+  .slot-position,
+  dt,
+  .parameter-empty {
+    color: var(--secondary);
+    font-size: 0.8125rem;
+  }
+
+  .stage-heading,
+  .slot-position,
+  dd {
+    font-family: var(--font-mono);
+  }
+
+  .effect-slots {
+    display: grid;
+    gap: 0.4rem;
+    align-content: start;
+  }
+
+  .slot {
+    border: 1px solid var(--edge);
+    border-radius: 0.4rem;
+    background: var(--panel);
+    overflow-wrap: anywhere;
+  }
+
+  .slot-static,
+  summary {
+    min-height: 44px;
+    padding: 0.65rem 0.75rem;
+    border-radius: 0.35rem;
+  }
+
+  summary {
+    cursor: pointer;
+  }
+
+  details[open] summary,
+  summary:hover {
+    color: var(--signal);
+  }
+
+  .slot-position {
+    display: inline-block;
+    min-width: 2.75rem;
+  }
+
+  .slot-status {
+    display: inline-block;
+    margin-inline-start: 0.4rem;
+  }
+
+  .slot-status[data-enabled='true'] {
+    color: var(--signal);
+  }
+
+  .slot-status[data-enabled='true']::before,
+  .slot-status[data-enabled='false']::before {
+    content: '';
+    display: inline-block;
+    width: 0.4rem;
+    height: 0.4rem;
+    margin-inline-end: 0.3rem;
+    border: 1px solid currentColor;
+    border-radius: 50%;
+    vertical-align: 0.08em;
+  }
+
+  .slot-status[data-enabled='true']::before {
+    background: currentColor;
+  }
+
+  dl,
+  .parameter-empty {
+    border-top: 1px solid var(--edge);
+    padding: 0.6rem 0.75rem;
+  }
+
+  dl > div {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.25rem 0.75rem;
+    padding-block: 0.25rem;
+  }
+
+  dd {
+    color: var(--signal);
+    font-size: 0.875rem;
+    font-variant-numeric: tabular-nums;
+  }
+</style>
