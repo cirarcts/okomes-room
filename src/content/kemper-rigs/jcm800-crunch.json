@@ -1,0 +1,57 @@
+{
+  "name": "Brit 800 Crunch",
+  "fictional": true,
+  "concept": "中域を押し出した、歯切れのいいハードロックのクランチ。低域を抑え、短い残響でリフの輪郭を残す。",
+  "amplifier": {
+    "name": "Brit 800 2203",
+    "settings": [
+      {
+        "label": "Gain",
+        "value": "6.2"
+      },
+      {
+        "label": "Bass",
+        "value": "-0.6"
+      },
+      {
+        "label": "Middle",
+        "value": "+1.4"
+      },
+      {
+        "label": "Treble",
+        "value": "+0.5"
+      },
+      {
+        "label": "Presence",
+        "value": "+0.7"
+      },
+      {
+        "label": "Definition",
+        "value": "6.1"
+      },
+      {
+        "label": "Amp Volume",
+        "value": "-0.5 dB"
+      }
+    ]
+  },
+  "cabinet": {
+    "name": "Brit 1960 4×12",
+    "settings": [
+      {
+        "label": "Pure Cabinet",
+        "value": "0.5"
+      },
+      {
+        "label": "Low Cut",
+        "value": "80 Hz"
+      },
+      {
+        "label": "High Cut",
+        "value": "7.8 kHz"
+      }
+    ]
+  },
+  "beforeStack": ["Treble Lift"],
+  "afterStack": ["Graphic EQ", "Short Room"]
+}

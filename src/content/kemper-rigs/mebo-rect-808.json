@@ -1,0 +1,57 @@
+{
+  "name": "MeBo Rect 808",
+  "fictional": true,
+  "concept": "Green Screamでアンプの手前をブーストし、パームミュートの低域を締めたモダンメタル向けの音。",
+  "amplifier": {
+    "name": "MeBo Dual Rect",
+    "settings": [
+      {
+        "label": "Gain",
+        "value": "7.4"
+      },
+      {
+        "label": "Bass",
+        "value": "+0.5"
+      },
+      {
+        "label": "Middle",
+        "value": "-0.8"
+      },
+      {
+        "label": "Treble",
+        "value": "+0.8"
+      },
+      {
+        "label": "Presence",
+        "value": "+1.2"
+      },
+      {
+        "label": "Definition",
+        "value": "7.5"
+      },
+      {
+        "label": "Amp Volume",
+        "value": "-1.0 dB"
+      }
+    ]
+  },
+  "cabinet": {
+    "name": "Rect V30 4×12",
+    "settings": [
+      {
+        "label": "Pure Cabinet",
+        "value": "0.0"
+      },
+      {
+        "label": "Low Cut",
+        "value": "95 Hz"
+      },
+      {
+        "label": "High Cut",
+        "value": "8.2 kHz"
+      }
+    ]
+  },
+  "beforeStack": ["Green Scream"],
+  "afterStack": ["Graphic EQ", "Short Room"]
+}
