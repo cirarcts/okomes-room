@@ -68,6 +68,7 @@ const toSlotButtons = (
       key: effect.slot,
       name: effect.name,
       enabled: effect.enabled,
+      category: effect.category,
       effect: true,
     };
   });
@@ -356,6 +357,10 @@ const description =
     display: grid;
     gap: 0.4rem;
     align-items: stretch;
+    padding: 0.4rem;
+    border: 1px solid var(--edge);
+    border-radius: 0.55rem;
+    background: var(--recess);
     font-size: 0.8125rem;
   }
 
@@ -364,13 +369,14 @@ const description =
     display: grid;
     align-content: center;
     gap: 0.25rem;
-    padding: 0.55rem 0.7rem;
+    padding: 0.45rem 0.55rem;
     border: 1px solid var(--edge);
     border-radius: 0.35rem;
   }
 
   .chain-stage {
     border-top: 2px solid color-mix(in srgb, var(--signal) 70%, transparent);
+    background: color-mix(in srgb, var(--signal) 8%, var(--recess));
   }
 
   .chain-stage .stage-label {
@@ -524,7 +530,7 @@ const description =
     }
 
     .chain-stages {
-      grid-template-columns: auto repeat(3, minmax(0, 1fr)) auto;
+      grid-template-columns: auto minmax(12.5rem, 2fr) minmax(7rem, 1fr) minmax(12.5rem, 2fr) auto;
     }
   }
 </style>

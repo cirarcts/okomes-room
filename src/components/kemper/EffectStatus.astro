@@ -1,0 +1,105 @@
+---
+import { resolveEffectCategory, type EffectCategory } from '../../lib/kemperEffectCategories';
+import { getPageLocale } from '../../lib/locale';
+import { messages } from '../../lib/messages';
+
+interface Props {
+  name: string;
+  category?: EffectCategory;
+  enabled?: boolean;
+  indicatorOnly?: boolean;
+}
+
+const { name, category, enabled, indicatorOnly = false } = Astro.props;
+const t = messages[getPageLocale(Astro.url.pathname).locale];
+---
+
+<span
+  class:list={['effect-status', { 'effect-status--indicator': indicatorOnly }]}
+  data-category={resolveEffectCategory(name, category)}
+  data-enabled={enabled}
+>
+  <span class:list={{ 'sr-only': indicatorOnly }}>
+    {enabled === undefined ? t.statusUnavailable : enabled ? 'ON' : 'OFF'}
+  </span>
+</span>
+
+<style>
+  .effect-status {
+    --effect-led: #b5bec4;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: var(--secondary);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+  }
+
+  [data-category='wah'] {
+    --effect-led: #ffa35d;
+  }
+
+  :is([data-category='distortion'], [data-category='booster'], [data-category='shaper']) {
+    --effect-led: #ff6274;
+  }
+
+  [data-category='equalizer'] {
+    --effect-led: #f4cb51;
+  }
+
+  :is([data-category='compressor'], [data-category='noise-gate']) {
+    --effect-led: #56cddd;
+  }
+
+  :is([data-category='chorus'], [data-category='tremolo']) {
+    --effect-led: #699fff;
+  }
+
+  :is([data-category='phaser'], [data-category='flanger']) {
+    --effect-led: #d48ef0;
+  }
+
+  [data-category='pitch-shifter'] {
+    --effect-led: #b5cbd9;
+  }
+
+  :is([data-category='delay'], [data-category='reverb']) {
+    --effect-led: #43e68c;
+  }
+
+  [data-category='pitch-delay'] {
+    --effect-led: #90eab6;
+  }
+
+  [data-category='effect-loop'] {
+    --effect-led: #ffa6b0;
+  }
+
+  .effect-status::before {
+    content: '';
+    flex: none;
+    width: 0.45rem;
+    height: 0.45rem;
+    border: 1px dashed currentColor;
+    border-radius: 50%;
+  }
+
+  .effect-status--indicator::before {
+    width: 0.54rem;
+    height: 0.54rem;
+  }
+
+  .effect-status[data-enabled='false']::before {
+    border-style: solid;
+  }
+
+  .effect-status[data-enabled='true'] {
+    color: var(--effect-led);
+  }
+
+  .effect-status[data-enabled='true']::before {
+    border-style: solid;
+    background: currentColor;
+    box-shadow: 0 0 0.35rem currentColor;
+  }
+</style>

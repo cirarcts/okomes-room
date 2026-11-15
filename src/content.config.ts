@@ -2,6 +2,8 @@ import { defineCollection } from 'astro:content';
 import { glob } from 'astro/loaders';
 import { z } from 'astro/zod';
 
+import { EFFECT_CATEGORIES } from './lib/kemperEffectCategories';
+
 const setting = z.object({
   label: z.string().min(1),
   // 小数点以下の桁数や <0.0> など、Rig Managerで見える表記を保つ。
@@ -24,6 +26,7 @@ function effectStage<const Slots extends readonly [string, ...string[]]>(slots: 
   const effect = z.object({
     slot: z.enum(slots),
     name: z.string().min(1).nullable(),
+    category: z.enum(EFFECT_CATEGORIES).optional(),
     enabled: z.boolean().optional(),
     parameters: z.array(effectParameter).optional(),
   });
