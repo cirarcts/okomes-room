@@ -1,21 +1,16 @@
-/** ノブとして表示できる設定項目の値域。 */
-interface KnobRange {
-  min: number;
-  max: number;
-}
+// Kemper公式フォーラムのスタッフ回答に基づく、Kemper GenericのGainの値域。
+const GAIN_MAX = 10;
+const EQ_LIMIT = 5;
+const RIG_VOLUME_MIN = -96;
+const RIG_VOLUME_MAX = 12;
 
-/**
- * Amplifierのうち、実機前面のノブに対応する項目。並び順は実機の左から右に合わせる。
- * 値域はコンテンツ側に持たせず、項目名から決める（Rigごとに変わらないため）。
- */
-export const AMPLIFIER_KNOBS: Readonly<Record<string, KnobRange>> = {
-  Gain: { min: 0, max: 10 },
-  Bass: { min: -5, max: 5 },
-  Middle: { min: -5, max: 5 },
-  Treble: { min: -5, max: 5 },
-  Presence: { min: -5, max: 5 },
-  'Amp Volume': { min: -12, max: 12 },
-};
+export const AMPLIFIER_KNOB_ORDER: readonly string[] = [
+  'Gain',
+  'Bass',
+  'Middle',
+  'Treble',
+  'Presence',
+];
 
 export interface KnobPosition {
   /** ノブの位置。0 が左いっぱい、1 が右いっぱい。 */
@@ -24,28 +19,33 @@ export interface KnobPosition {
   bipolar: boolean;
 }
 
-/**
- * Rig Managerの表記（"6.2"、"+1.4"、"-0.5 dB"、"<0.0>"）から数値を取り出す。
- * 数値として読めない表記（"Post" など）は null を返す。
- */
-export function parseSettingValue(value: string): number | null {
-  const match = /^<?([+-]?\d+(?:\.\d+)?)>?(?:\s*dB)?$/.exec(value.trim());
-  return match ? Number(match[1]) : null;
-}
-
-/**
- * 設定項目をノブの位置へ変換する。
- * ノブ対象外の項目や数値として読めない値は null を返し、呼び出し側は文字表示にする。
- * 値域を外れた値は端に丸める。
- */
+/** 確認済みの値域と表記に合う項目だけを図示する。 */
 export function toKnobPosition(label: string, value: string): KnobPosition | null {
-  if (!Object.hasOwn(AMPLIFIER_KNOBS, label)) return null;
-  const range = AMPLIFIER_KNOBS[label];
-  const number = parseSettingValue(value);
-  if (number === null) return null;
+  const setting = value.trim();
+  if (label === 'Rig Volume') {
+    const normalized = setting.replace(/^−/, '-');
+    if (/^-?\s*∞$/.test(normalized)) return { ratio: 0, bipolar: false };
 
-  const ratio = (number - range.min) / (range.max - range.min);
-  return { ratio: Math.min(1, Math.max(0, ratio)), bipolar: range.min < 0 };
+    const match = /^([+-]?\d+(?:\.\d+)?)\s*dB$/.exec(normalized);
+    if (!match) return null;
+    const decibels = Number(match[1]);
+    if (decibels < RIG_VOLUME_MIN || decibels > RIG_VOLUME_MAX) return null;
+
+    // 実機で確認した0 dBを中央に置き、左右それぞれの値域を線形に割り当てる。
+    const limit = decibels < 0 ? -RIG_VOLUME_MIN : RIG_VOLUME_MAX;
+    return { ratio: 0.5 + decibels / (2 * limit), bipolar: false };
+  }
+
+  if (!AMPLIFIER_KNOB_ORDER.includes(label) || !/^[+-]?\d+(?:\.\d+)?$/.test(setting)) {
+    return null;
+  }
+  const number = Number(setting);
+  if (label === 'Gain') {
+    return number >= 0 && number <= GAIN_MAX ? { ratio: number / GAIN_MAX, bipolar: false } : null;
+  }
+  return Math.abs(number) <= EQ_LIMIT
+    ? { ratio: (number + EQ_LIMIT) / (2 * EQ_LIMIT), bipolar: true }
+    : null;
 }
 
 /**

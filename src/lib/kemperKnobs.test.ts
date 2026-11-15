@@ -1,47 +1,66 @@
 import { describe, expect, it } from 'vitest';
 
-import { litLeds, parseSettingValue, toKnobPosition } from './kemperKnobs';
+import { litLeds, toKnobPosition } from './kemperKnobs';
 
-describe('parseSettingValue', () => {
-  it('Rig Managerの数値表記を読み取る', () => {
-    expect(parseSettingValue('6.2')).toBe(6.2);
-    expect(parseSettingValue('+1.4')).toBe(1.4);
-    expect(parseSettingValue('-0.6')).toBe(-0.6);
-    expect(parseSettingValue('-0.5 dB')).toBe(-0.5);
-    expect(parseSettingValue('<0.0>')).toBe(0);
-    expect(parseSettingValue('10')).toBe(10);
+describe('toKnobPosition', () => {
+  it.each([
+    ['0.0', 0],
+    ['3.4', 0.34],
+    ['10.0', 1],
+  ])('Gain %sを確認済みの範囲で正規化する', (value, ratio) => {
+    const position = toKnobPosition('Gain', value);
+    expect(position?.ratio).toBeCloseTo(ratio);
+    expect(position?.bipolar).toBe(false);
   });
 
-  it('数値として読めない表記は null を返す', () => {
-    expect(parseSettingValue('Post')).toBeNull();
-    expect(parseSettingValue('Kemper Generic')).toBeNull();
-    expect(parseSettingValue('7.0 kHz')).toBeNull();
-    expect(parseSettingValue('')).toBeNull();
+  it.each(['-0.1', '10.1', '3.4 dB', '3.4%', '<3.4', 'Post'])(
+    '値域外・無単位でない値・壊れた表記 %s は図示しない',
+    (value) => {
+      expect(toKnobPosition('Gain', value)).toBeNull();
+    },
+  );
+
+  it.each([
+    ['Bass', '-5.0', 0],
+    ['Middle', '0.0', 0.5],
+    ['Treble', '-1.2', 0.38],
+    ['Presence', '+5.0', 1],
+  ])('%s %sは中央を基準に図示する', (label, value, ratio) => {
+    const position = toKnobPosition(label, value);
+    expect(position?.ratio).toBeCloseTo(ratio);
+    expect(position?.bipolar).toBe(true);
+  });
+
+  it.each([
+    ['Bass', '-7'],
+    ['Treble', '2.0 dB'],
+    ['Rig Volume', '-96.1 dB'],
+    ['Rig Volume', '+12.1 dB'],
+    ['Rig Volume', '0.0'],
+    ['Amp Volume', '-2.2 dB'],
+    ['Definition', '3.4'],
+    ['constructor', '3.4'],
+  ])('%s %sは図示せず数値で表示する', (label, value) => {
+    expect(toKnobPosition(label, value)).toBeNull();
   });
 });
 
-describe('toKnobPosition', () => {
-  it('通常の項目を 0〜1 の位置へ変換する', () => {
-    expect(toKnobPosition('Gain', '0.0')).toEqual({ ratio: 0, bipolar: false });
-    expect(toKnobPosition('Gain', '5.0')).toEqual({ ratio: 0.5, bipolar: false });
-    expect(toKnobPosition('Gain', '10.0')).toEqual({ ratio: 1, bipolar: false });
-  });
-
-  it('中央基準の項目は 0 が中央になる', () => {
-    expect(toKnobPosition('Bass', '0.0')).toEqual({ ratio: 0.5, bipolar: true });
-    expect(toKnobPosition('Bass', '-5.0')).toEqual({ ratio: 0, bipolar: true });
-    expect(toKnobPosition('Amp Volume', '+12.0 dB')).toEqual({ ratio: 1, bipolar: true });
-  });
-
-  it('値域を外れた値は端に丸める', () => {
-    expect(toKnobPosition('Gain', '12.0')?.ratio).toBe(1);
-    expect(toKnobPosition('Treble', '-9.0')?.ratio).toBe(0);
-  });
-
-  it('ノブ対象外の項目や読めない値は null を返す', () => {
-    expect(toKnobPosition('Definition', '6.1')).toBeNull();
-    expect(toKnobPosition('Gain', 'Post')).toBeNull();
-    expect(toKnobPosition('constructor', '1.0')).toBeNull();
+describe('Rig VolumeのLED', () => {
+  it.each([
+    ['∞', 0, 1],
+    ['- ∞', 0, 1],
+    ['−96.0 dB', 0, 1],
+    ['-95.9dB', 0.1 / 192, 1],
+    ['-48.0 dB', 0.25, 5],
+    ['0.0dB', 0.5, 8],
+    ['+6.0 dB', 0.75, 12],
+    ['+12.0dB', 1, 15],
+  ])('%s は左端から連続して点灯する', (value, ratio, litCount) => {
+    const position = toKnobPosition('Rig Volume', value);
+    expect(position?.ratio).toBeCloseTo(ratio, 8);
+    expect(litLeds(position!, 15)).toEqual(
+      Array.from({ length: 15 }, (_, index) => index < litCount),
+    );
   });
 });
 

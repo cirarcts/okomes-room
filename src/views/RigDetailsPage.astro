@@ -6,7 +6,7 @@ import KemperStage from '../components/kemper/KemperStage.astro';
 import Knob from '../components/kemper/Knob.astro';
 import SlotButtons, { type SlotButton } from '../components/kemper/SlotButtons.astro';
 import BaseLayout from '../layouts/BaseLayout.astro';
-import { toKnobPosition } from '../lib/kemperKnobs';
+import { AMPLIFIER_KNOB_ORDER, toKnobPosition } from '../lib/kemperKnobs';
 import { getPageLocale, localizedPath } from '../lib/locale';
 import { messages } from '../lib/messages';
 
@@ -19,12 +19,25 @@ interface Props {
 
 const { rig } = Astro.props;
 
-// Amplifierのうち実機前面のノブに対応する項目は図で示し、残りは一覧のまま表示する
+// 実機のアンプモデルで値域が変わるGainは、Kemper Genericと架空Rigでのみ図示する。
+const ampModel = rig.amplifier.settings.find(({ label }) => label === 'Amp Model')?.value;
+const useGainKnob = ampModel === 'Kemper Generic' || (ampModel === undefined && rig.fictional);
 const ampSettings = rig.amplifier.settings.map((setting) => ({
   ...setting,
-  position: toKnobPosition(setting.label, setting.value),
+  position:
+    setting.label === 'Gain' && !useGainKnob ? null : toKnobPosition(setting.label, setting.value),
 }));
-const ampKnobs = ampSettings.filter((setting) => setting.position !== null);
+const ampKnobs = AMPLIFIER_KNOB_ORDER.flatMap((label) =>
+  ampSettings.filter((setting) => setting.label === label && setting.position !== null),
+);
+if (rig.rigVolume !== undefined) {
+  const position = toKnobPosition('Rig Volume', rig.rigVolume);
+  ampKnobs.push({
+    label: 'Rig Volume',
+    value: position?.ratio === 0 ? '−∞' : rig.rigVolume,
+    position,
+  });
+}
 const modules = [
   {
     id: 'panel-amplifier',
@@ -47,18 +60,22 @@ const toSlotButtons = (
   tone: 'stomps' | 'effects',
   effects: typeof rig.beforeStack | typeof rig.afterStack,
 ): SlotButton[] =>
-  effects.flatMap((effect, index) => {
+  effects.map((effect, index) => {
     const target = `panel-${tone}-${index}`;
-    if (typeof effect === 'string') return [{ target, name: effect }];
-    return effect.name === null
-      ? []
-      : [{ target, key: effect.slot, name: effect.name, enabled: effect.enabled }];
+    if (typeof effect === 'string') return { target, name: effect, effect: true };
+    return {
+      target: effect.name === null ? undefined : target,
+      key: effect.slot,
+      name: effect.name,
+      enabled: effect.enabled,
+      effect: true,
+    };
   });
 const stompButtons = toSlotButtons('stomps', rig.beforeStack);
 const effectButtons = toSlotButtons('effects', rig.afterStack);
 const stackButtons: SlotButton[] = [
-  { target: 'panel-amplifier', key: 'AMP', name: rig.amplifier.name, enabled: true },
-  { target: 'panel-cabinet', key: 'CAB', name: rig.cabinet.name, enabled: true },
+  { target: 'panel-amplifier', key: 'AMP', name: rig.amplifier.name },
+  { target: 'panel-cabinet', key: 'CAB', name: rig.cabinet.name },
 ];
 const title = `${rig.name} | Kemper Rig Viewer`;
 const concept = locale === 'en' ? rig.conceptEn : rig.concept;
@@ -140,20 +157,12 @@ const description =
 
         <div data-rig-panel-actions hidden>
           <div class="flex flex-wrap gap-2" role="group" aria-label={t.bulkActions}>
-            <button type="button" class="panel-action" data-show-all hidden>
-              {t.showAll}
-            </button>
             <button type="button" class="panel-action" data-open-panels>
               {t.openAll}
             </button>
             <button type="button" class="panel-action" data-close-panels>
               {t.closeAll}
             </button>
-            {ampKnobs.length > 0 && (
-              <button type="button" class="panel-action" data-toggle-knobs aria-pressed="true">
-                {t.knobView}
-              </button>
-            )}
           </div>
         </div>
 
@@ -164,6 +173,13 @@ const description =
                 <span class="module-label">{label}</span>
                 <span class="module-name">{module.name}</span>
               </summary>
+              {knobs.some(({ position }) => position !== null) && (
+                <div class="knob-actions" hidden>
+                  <button type="button" class="panel-action" data-toggle-knobs aria-pressed="true">
+                    {t.knobView}
+                  </button>
+                </div>
+              )}
               {knobs.length > 0 && (
                 <dl class="knobs">
                   {knobs.map(({ label, value, position }) => (
@@ -204,53 +220,70 @@ const description =
   const closeButton = actions?.querySelector('[data-close-panels]');
 
   if (rig && actions && openButton && closeButton) {
-    const panels = rig.querySelectorAll('details');
+    const panels = rig.querySelectorAll<HTMLElement>('[data-panel]');
+    let selected: { link: HTMLAnchorElement; panel: HTMLElement } | undefined;
+
+    const clearSelection = () => {
+      selected?.link.removeAttribute('aria-current');
+      selected?.panel.removeAttribute('data-active');
+      selected = undefined;
+    };
+
     const setPanelsOpen = (open: boolean) => {
-      for (const panel of panels) panel.open = open;
+      clearSelection();
+      for (const panel of panels) {
+        if (panel instanceof HTMLDetailsElement) panel.open = open;
+      }
     };
     openButton.addEventListener('click', () => setPanelsOpen(true));
     closeButton.addEventListener('click', () => setPanelsOpen(false));
 
-    // スロット選択：選んだモジュールの設定パネルだけを表示する。同じスロットをもう一度選ぶと解除する
-    const slotLinks = rig.querySelectorAll<HTMLAnchorElement>('[data-slot-target]');
-    const slotPanels = rig.querySelectorAll<HTMLElement>('[data-panel]');
-    const showAllButton = actions.querySelector<HTMLElement>('[data-show-all]');
-    const selectSlot = (id: string | null) => {
-      for (const panel of slotPanels) {
-        const active = panel.id === id;
-        panel.toggleAttribute('data-active', active);
-        if (active && panel instanceof HTMLDetailsElement) panel.open = true;
-      }
-      for (const link of slotLinks) {
-        if (link.dataset.slotTarget === id) link.setAttribute('aria-current', 'true');
-        else link.removeAttribute('aria-current');
-      }
-      rig.toggleAttribute('data-focus', id !== null);
-      if (showAllButton) showAllButton.hidden = id === null;
-    };
-    for (const link of slotLinks) {
+    for (const link of rig.querySelectorAll<HTMLAnchorElement>('[data-slot-target]')) {
+      const panel = document.getElementById(link.dataset.slotTarget ?? '');
+      if (!panel || !rig.contains(panel)) continue;
       link.addEventListener('click', (event) => {
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
         event.preventDefault();
-        const selected = link.getAttribute('aria-current') === 'true';
-        selectSlot(selected ? null : (link.dataset.slotTarget ?? null));
-      });
-    }
-    showAllButton?.addEventListener('click', () => selectSlot(null));
+        clearSelection();
+        selected = { link, panel };
+        link.setAttribute('aria-current', 'true');
+        panel.setAttribute('data-active', '');
 
-    // ノブ表示と一覧表示の切替。図を隠すだけで、項目と値は同じ要素を使う
-    const knobButton = actions.querySelector('[data-toggle-knobs]');
+        const heading = panel.querySelector('summary') ?? panel;
+        if (panel instanceof HTMLDetailsElement) panel.open = true;
+        heading.focus({ preventScroll: true });
+        const { top, bottom } = heading.getBoundingClientRect();
+        const scrollMargin = Number.parseFloat(getComputedStyle(heading).scrollMarginTop);
+        if (top < scrollMargin || bottom > window.innerHeight - 16) {
+          heading.scrollIntoView({ block: 'start', behavior: 'instant' });
+        }
+      });
+      if (panel instanceof HTMLDetailsElement) {
+        panel.addEventListener('toggle', () => {
+          if (!panel.open && selected?.panel === panel) clearSelection();
+        });
+      }
+    }
+
+    // 図だけを切り替え、項目名と値は同じ要素で表示する。
+    const knobButton = rig.querySelector<HTMLElement>('[data-toggle-knobs]');
+    const knobActions = knobButton?.closest<HTMLElement>('.knob-actions');
     const modules = rig.querySelector<HTMLElement>('.rig-modules');
-    knobButton?.addEventListener('click', () => {
-      const showKnobs = knobButton.getAttribute('aria-pressed') !== 'true';
-      knobButton.setAttribute('aria-pressed', String(showKnobs));
-      if (modules) modules.dataset.view = showKnobs ? 'knobs' : 'list';
-    });
+    if (knobButton && knobActions && modules) {
+      knobButton.addEventListener('click', () => {
+        const showKnobs = knobButton.getAttribute('aria-pressed') !== 'true';
+        knobButton.setAttribute('aria-pressed', String(showKnobs));
+        modules.dataset.view = showKnobs ? 'knobs' : 'list';
+      });
+      knobActions.hidden = false;
+    }
     actions.hidden = false;
   }
 </script>
 
 <style>
   .rig {
+    overflow-wrap: anywhere;
     --panel: #1b211f;
     --recess: #101613;
     --edge: #3d4c44;
@@ -260,7 +293,7 @@ const description =
     --panel-face: linear-gradient(#222927, #171c1a);
     --panel-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08), 0 2px 5px rgb(0 0 0 / 0.45);
     display: grid;
-    gap: 1.5rem;
+    gap: clamp(1rem, 3vw, 1.5rem);
     border: 1px solid var(--edge);
     /* 実機のアーチ状の上辺を、上側だけ大きくした角丸で表現する */
     border-radius: clamp(1.5rem, 6vw, 3.5rem) clamp(1.5rem, 6vw, 3.5rem) 0.75rem 0.75rem;
@@ -289,7 +322,7 @@ const description =
     box-shadow:
       inset 0 2px 6px rgb(0 0 0 / 0.45),
       0 0 0 3px #0a0d0c,
-      0 0 2rem rgb(168 231 191 / 0.16);
+      0 0 1.4rem rgb(168 231 191 / 0.12);
     color: #0f1f18;
     font-family: var(--font-mono);
   }
@@ -406,6 +439,11 @@ const description =
     font-size: 0.875rem;
   }
 
+  .knob-actions {
+    padding: 0.55rem 0.75rem;
+    border-top: 1px solid var(--edge);
+  }
+
   .rig-modules dl {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 7rem), 1fr));
@@ -436,7 +474,7 @@ const description =
 
   /* ノブ表示：実機の緑のパネルにノブが並ぶ様子を再現する */
   .rig-modules:not([data-view='list']) .knobs {
-    grid-template-columns: repeat(auto-fit, minmax(4.75rem, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 4.75rem), 1fr));
     gap: 0.75rem 0.25rem;
     padding: 1rem 0.5rem 0.75rem;
     background: linear-gradient(rgb(52 98 76 / 0.5), rgb(36 74 56 / 0.5));
@@ -467,32 +505,16 @@ const description =
     gap: 1rem;
   }
 
-  /* スロット選択中：選んだパネルだけを残し、一括操作は隠す */
-  .rig[data-focus] :global([data-panel]:not([data-active])),
-  .rig[data-focus] :global(.effect-slots > li:not(:has([data-active]))),
-  .rig[data-focus] :global(.effect-group:not(:has([data-active]))),
-  .rig[data-focus] .rig-modules:not(:has([data-active])),
-  .rig[data-focus] .effect-settings:not(:has([data-active])),
-  .rig[data-focus] :is([data-open-panels], [data-close-panels]),
-  /* ノブ表示の切替はAmplifierを選んでいるときだけ意味を持つ */
-  .rig[data-focus]:not(:has(#panel-amplifier[data-active])) [data-toggle-knobs] {
-    display: none;
-  }
-
-  .rig[data-focus] .effect-settings {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .rig :global([data-panel][data-active]) {
     border-color: var(--signal);
-    animation: kemper-panel-in 0.22s ease-out;
+    outline: 1px solid var(--signal);
+    outline-offset: 1px;
   }
 
-  @keyframes kemper-panel-in {
-    from {
-      opacity: 0;
-      transform: translateY(0.4rem);
-    }
+  .rig :global([data-panel]),
+  .rig :global([data-panel] > summary) {
+    /* 固定表示される共通ヘッダー（3.5rem）の下に見出しを出す。 */
+    scroll-margin-block-start: 4.5rem;
   }
 
   @media (min-width: 48rem) {

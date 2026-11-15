@@ -27,7 +27,7 @@ const t = messages[getPageLocale(Astro.url.pathname).locale];
       {effects.map((effect, index) => (
         <li>
           {typeof effect === 'string' ? (
-            <div class="slot slot-static" id={`panel-${tone}-${index}`} data-panel>
+            <div class="slot slot-static" id={`panel-${tone}-${index}`} data-panel tabindex="-1">
               <span lang="en">{effect}</span>
               <span class="slot-status">{t.settingsUnavailable}</span>
             </div>
@@ -124,6 +124,12 @@ const t = messages[getPageLocale(Astro.url.pathname).locale];
     background: var(--panel-face);
     box-shadow: var(--panel-shadow);
     overflow-wrap: anywhere;
+  }
+
+  .slot-static {
+    border-top: 1px solid var(--edge);
+    background: var(--recess);
+    box-shadow: none;
   }
 
   .slot-static,

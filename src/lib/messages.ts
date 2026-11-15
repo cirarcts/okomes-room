@@ -31,7 +31,6 @@ const ja = {
   openAll: 'すべて開く',
   closeAll: 'すべて閉じる',
   knobView: 'ノブ表示',
-  showAll: 'すべて表示',
 };
 
 export const messages: Record<Locale, typeof ja> = {
@@ -67,6 +66,5 @@ export const messages: Record<Locale, typeof ja> = {
     openAll: 'Expand all',
     closeAll: 'Collapse all',
     knobView: 'Knob view',
-    showAll: 'Show all',
   },
 };
