@@ -1,0 +1,115 @@
+---
+/*
+ * 信号の流れに並べるスロットボタン。実機上段のモジュールボタンとLEDを模している。
+ * JavaScriptが無効でも、対応する設定パネルへのページ内リンクとして動作する。
+ */
+export interface SlotButton {
+  /** 対応する設定パネルのid */
+  target: string;
+  /** スロット名（A、MOD、AMPなど）。スロット情報がないエフェクトでは省略する */
+  key?: string;
+  name: string;
+  /** ON/OFF。状態が分からない場合は省略する */
+  enabled?: boolean;
+}
+
+interface Props {
+  buttons: SlotButton[];
+}
+
+const { buttons } = Astro.props;
+---
+
+<ul class="slot-buttons">
+  {buttons.map(({ target, key, name, enabled }) => (
+    <li>
+      <a class="slot-button" href={`#${target}`} data-slot-target={target} lang="en">
+        <span
+          class="slot-led"
+          data-led={enabled === undefined ? 'unknown' : enabled ? 'on' : 'off'}
+          aria-hidden="true"
+        />
+        {key && <span class="slot-key">{key}</span>}
+        <span class="slot-name">{name}</span>
+        {enabled !== undefined && <span class="sr-only">{enabled ? 'ON' : 'OFF'}</span>}
+      </a>
+    </li>
+  ))}
+</ul>
+
+<style>
+  .slot-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+
+  .slot-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: 44px;
+    padding: 0.3rem 0.6rem;
+    border: 1px solid var(--edge);
+    border-radius: 0.3rem;
+    background: var(--panel-face);
+    box-shadow: var(--panel-shadow);
+    overflow-wrap: anywhere;
+    transition:
+      border-color 0.15s,
+      background-color 0.15s;
+  }
+
+  .slot-key {
+    color: var(--secondary);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+  }
+
+  .slot-led {
+    flex: none;
+    width: 0.5rem;
+    height: 0.5rem;
+    border: 1px solid color-mix(in srgb, var(--signal) 60%, transparent);
+    border-radius: 50%;
+    transition: box-shadow 0.15s;
+  }
+
+  .slot-led[data-led='on'] {
+    background: var(--signal);
+    box-shadow: 0 0 0.35rem var(--signal);
+  }
+
+  .slot-led[data-led='unknown'] {
+    border-style: dashed;
+  }
+
+  /* ポインタを重ねたとき・選択中はLEDを強く光らせる */
+  .slot-button:hover,
+  .slot-button[aria-current='true'] {
+    border-color: var(--signal);
+  }
+
+  .slot-button:hover .slot-led:not([data-led='off']),
+  .slot-button[aria-current='true'] .slot-led:not([data-led='off']) {
+    background: var(--signal);
+    box-shadow:
+      0 0 0.3rem var(--signal),
+      0 0 0.9rem var(--signal);
+  }
+
+  .slot-button[aria-current='true'] {
+    background: color-mix(in srgb, var(--signal) 14%, #171c1a);
+    color: var(--signal);
+  }
+
+  .slot-button[aria-current='true'] .slot-led {
+    animation: kemper-led-pulse 0.5s ease-out;
+  }
+
+  @keyframes kemper-led-pulse {
+    from {
+      transform: scale(1.8);
+    }
+  }
+</style>

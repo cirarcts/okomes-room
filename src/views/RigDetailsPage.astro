@@ -4,6 +4,7 @@ import type { CollectionEntry } from 'astro:content';
 import EffectStage from '../components/kemper/EffectStage.astro';
 import KemperStage from '../components/kemper/KemperStage.astro';
 import Knob from '../components/kemper/Knob.astro';
+import SlotButtons, { type SlotButton } from '../components/kemper/SlotButtons.astro';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { toKnobPosition } from '../lib/kemperKnobs';
 import { getPageLocale, localizedPath } from '../lib/locale';
@@ -26,12 +27,38 @@ const ampSettings = rig.amplifier.settings.map((setting) => ({
 const ampKnobs = ampSettings.filter((setting) => setting.position !== null);
 const modules = [
   {
+    id: 'panel-amplifier',
     label: 'Amplifier',
     module: rig.amplifier,
     knobs: ampKnobs,
     settings: ampSettings.filter((setting) => setting.position === null),
   },
-  { label: 'Cabinet', module: rig.cabinet, knobs: [], settings: rig.cabinet.settings },
+  {
+    id: 'panel-cabinet',
+    label: 'Cabinet',
+    module: rig.cabinet,
+    knobs: [],
+    settings: rig.cabinet.settings,
+  },
+];
+
+// 信号の流れに並べるスロットボタン。パネルのidは EffectStage の採番と揃える
+const toSlotButtons = (
+  tone: 'stomps' | 'effects',
+  effects: typeof rig.beforeStack | typeof rig.afterStack,
+): SlotButton[] =>
+  effects.flatMap((effect, index) => {
+    const target = `panel-${tone}-${index}`;
+    if (typeof effect === 'string') return [{ target, name: effect }];
+    return effect.name === null
+      ? []
+      : [{ target, key: effect.slot, name: effect.name, enabled: effect.enabled }];
+  });
+const stompButtons = toSlotButtons('stomps', rig.beforeStack);
+const effectButtons = toSlotButtons('effects', rig.afterStack);
+const stackButtons: SlotButton[] = [
+  { target: 'panel-amplifier', key: 'AMP', name: rig.amplifier.name, enabled: true },
+  { target: 'panel-cabinet', key: 'CAB', name: rig.cabinet.name, enabled: true },
 ];
 const title = `${rig.name} | Kemper Rig Viewer`;
 const concept = locale === 'en' ? rig.conceptEn : rig.concept;
@@ -83,29 +110,27 @@ const description =
               <span class="stage-label" lang="en">
                 Stomps
               </span>
-              <span>
-                {rig.beforeStack
-                  .map((effect) => (typeof effect === 'string' ? effect : effect.name))
-                  .filter(Boolean)
-                  .join(' → ') || t.notSet}
-              </span>
+              {stompButtons.length > 0 ? (
+                <SlotButtons buttons={stompButtons} />
+              ) : (
+                <span>{t.notSet}</span>
+              )}
             </li>
             <li class="chain-stage chain-stack">
               <span class="stage-label" lang="en">
                 Stack
               </span>
-              <span lang="en">Amplifier → Cabinet</span>
+              <SlotButtons buttons={stackButtons} />
             </li>
             <li class="chain-stage" data-tone="effects">
               <span class="stage-label" lang="en">
                 Effects
               </span>
-              <span>
-                {rig.afterStack
-                  .map((effect) => (typeof effect === 'string' ? effect : effect.name))
-                  .filter(Boolean)
-                  .join(' → ') || t.notSet}
-              </span>
+              {effectButtons.length > 0 ? (
+                <SlotButtons buttons={effectButtons} />
+              ) : (
+                <span>{t.notSet}</span>
+              )}
             </li>
             <li class="chain-edge" lang="en">
               Output
@@ -115,6 +140,9 @@ const description =
 
         <div data-rig-panel-actions hidden>
           <div class="flex flex-wrap gap-2" role="group" aria-label={t.bulkActions}>
+            <button type="button" class="panel-action" data-show-all hidden>
+              {t.showAll}
+            </button>
             <button type="button" class="panel-action" data-open-panels>
               {t.openAll}
             </button>
@@ -130,8 +158,8 @@ const description =
         </div>
 
         <div class="rig-modules" lang="en">
-          {modules.map(({ label, module, knobs, settings }) => (
-            <details open>
+          {modules.map(({ id, label, module, knobs, settings }) => (
+            <details id={id} data-panel open>
               <summary>
                 <span class="module-label">{label}</span>
                 <span class="module-name">{module.name}</span>
@@ -182,6 +210,32 @@ const description =
     };
     openButton.addEventListener('click', () => setPanelsOpen(true));
     closeButton.addEventListener('click', () => setPanelsOpen(false));
+
+    // スロット選択：選んだモジュールの設定パネルだけを表示する。同じスロットをもう一度選ぶと解除する
+    const slotLinks = rig.querySelectorAll<HTMLAnchorElement>('[data-slot-target]');
+    const slotPanels = rig.querySelectorAll<HTMLElement>('[data-panel]');
+    const showAllButton = actions.querySelector<HTMLElement>('[data-show-all]');
+    const selectSlot = (id: string | null) => {
+      for (const panel of slotPanels) {
+        const active = panel.id === id;
+        panel.toggleAttribute('data-active', active);
+        if (active && panel instanceof HTMLDetailsElement) panel.open = true;
+      }
+      for (const link of slotLinks) {
+        if (link.dataset.slotTarget === id) link.setAttribute('aria-current', 'true');
+        else link.removeAttribute('aria-current');
+      }
+      rig.toggleAttribute('data-focus', id !== null);
+      if (showAllButton) showAllButton.hidden = id === null;
+    };
+    for (const link of slotLinks) {
+      link.addEventListener('click', (event) => {
+        event.preventDefault();
+        const selected = link.getAttribute('aria-current') === 'true';
+        selectSlot(selected ? null : (link.dataset.slotTarget ?? null));
+      });
+    }
+    showAllButton?.addEventListener('click', () => selectSlot(null));
 
     // ノブ表示と一覧表示の切替。図を隠すだけで、項目と値は同じ要素を使う
     const knobButton = actions.querySelector('[data-toggle-knobs]');
@@ -413,6 +467,34 @@ const description =
     gap: 1rem;
   }
 
+  /* スロット選択中：選んだパネルだけを残し、一括操作は隠す */
+  .rig[data-focus] :global([data-panel]:not([data-active])),
+  .rig[data-focus] :global(.effect-slots > li:not(:has([data-active]))),
+  .rig[data-focus] :global(.effect-group:not(:has([data-active]))),
+  .rig[data-focus] .rig-modules:not(:has([data-active])),
+  .rig[data-focus] .effect-settings:not(:has([data-active])),
+  .rig[data-focus] :is([data-open-panels], [data-close-panels]),
+  /* ノブ表示の切替はAmplifierを選んでいるときだけ意味を持つ */
+  .rig[data-focus]:not(:has(#panel-amplifier[data-active])) [data-toggle-knobs] {
+    display: none;
+  }
+
+  .rig[data-focus] .effect-settings {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rig :global([data-panel][data-active]) {
+    border-color: var(--signal);
+    animation: kemper-panel-in 0.22s ease-out;
+  }
+
+  @keyframes kemper-panel-in {
+    from {
+      opacity: 0;
+      transform: translateY(0.4rem);
+    }
+  }
+
   @media (min-width: 48rem) {
     .effect-settings {
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -420,7 +502,7 @@ const description =
     }
 
     .chain-stages {
-      grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr) auto;
+      grid-template-columns: auto repeat(3, minmax(0, 1fr)) auto;
     }
   }
 </style>

@@ -24,22 +24,22 @@ const t = messages[getPageLocale(Astro.url.pathname).locale];
   {effects.length === 0 && <p class="text-sm">{t.notSet}</p>}
   {effects.length > 0 && (
     <ol class="effect-slots">
-      {effects.map((effect) => (
+      {effects.map((effect, index) => (
         <li>
           {typeof effect === 'string' ? (
-            <div class="slot slot-static">
+            <div class="slot slot-static" id={`panel-${tone}-${index}`} data-panel>
               <span lang="en">{effect}</span>
               <span class="slot-status">{t.settingsUnavailable}</span>
             </div>
           ) : effect.name === null ? (
-            <div class="slot slot-static">
+            <div class="slot slot-static" id={`panel-${tone}-${index}`} data-panel>
               <span class="slot-position" lang="en">
                 {effect.slot}
               </span>
               <span>{t.notSet}</span>
             </div>
           ) : (
-            <details class="slot">
+            <details class="slot" id={`panel-${tone}-${index}`} data-panel>
               <summary>
                 <span class="slot-position" lang="en">
                   {effect.slot}
