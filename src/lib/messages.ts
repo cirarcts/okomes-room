@@ -30,6 +30,7 @@ const ja = {
   bulkActions: '設定パネルの一括操作',
   openAll: 'すべて開く',
   closeAll: 'すべて閉じる',
+  knobView: 'ノブ表示',
 };
 
 export const messages: Record<Locale, typeof ja> = {
@@ -64,5 +65,6 @@ export const messages: Record<Locale, typeof ja> = {
     bulkActions: 'Settings panel controls',
     openAll: 'Expand all',
     closeAll: 'Collapse all',
+    knobView: 'Knob view',
   },
 };

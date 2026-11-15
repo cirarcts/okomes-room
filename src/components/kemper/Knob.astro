@@ -1,0 +1,83 @@
+---
+/*
+ * ノブとLEDリングの図。値は呼び出し側が文字でも表示するため、図自体は装飾として扱う。
+ * 静的なSVGだけで描画し、クライアントJavaScriptは使わない。
+ */
+import { litLeds, type KnobPosition } from '../../lib/kemperKnobs';
+
+interface Props {
+  position: KnobPosition;
+}
+
+const { position } = Astro.props;
+
+const LED_COUNT = 17;
+// ノブの可動範囲。真上を0°として左右135°ずつ
+const SWEEP = 270;
+const START = -SWEEP / 2;
+
+const leds = litLeds(position, LED_COUNT).map((lit, index) => {
+  const angle = ((START + (index * SWEEP) / (LED_COUNT - 1)) * Math.PI) / 180;
+  return {
+    lit,
+    x: (50 + 43 * Math.sin(angle)).toFixed(2),
+    y: (50 - 43 * Math.cos(angle)).toFixed(2),
+  };
+});
+const pointerAngle = (START + position.ratio * SWEEP).toFixed(1);
+---
+
+<svg class="knob" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+  {leds.map(({ lit, x, y }) => (
+    <circle class:list={['led', { lit }]} cx={x} cy={y} r="2.7" />
+  ))}
+  <circle class="knob-base" cx="50" cy="50" r="33" />
+  <circle class="knob-cap" cx="50" cy="50" r="29" />
+  <circle class="knob-shine" cx="50" cy="50" r="22" />
+  <line
+    class="knob-pointer"
+    x1="50"
+    y1="24"
+    x2="50"
+    y2="38"
+    transform={`rotate(${pointerAngle} 50 50)`}
+  ></line>
+</svg>
+
+<style>
+  .knob {
+    display: block;
+    width: 100%;
+    max-width: 6.5rem;
+    overflow: visible;
+  }
+
+  .led {
+    fill: rgb(120 160 150 / 0.22);
+  }
+
+  .led.lit {
+    fill: #c4fff0;
+    filter: drop-shadow(0 0 2.5px rgb(120 255 220 / 0.9));
+  }
+
+  .knob-base {
+    fill: #080a09;
+  }
+
+  .knob-cap {
+    fill: #9aa3a0;
+    stroke: #5d6663;
+    stroke-width: 1.5;
+  }
+
+  .knob-shine {
+    fill: #c9d0cd;
+  }
+
+  .knob-pointer {
+    stroke: #121615;
+    stroke-width: 4;
+    stroke-linecap: round;
+  }
+</style>

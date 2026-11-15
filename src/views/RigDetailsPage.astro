@@ -2,7 +2,10 @@
 import type { CollectionEntry } from 'astro:content';
 
 import EffectStage from '../components/kemper/EffectStage.astro';
+import KemperStage from '../components/kemper/KemperStage.astro';
+import Knob from '../components/kemper/Knob.astro';
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { toKnobPosition } from '../lib/kemperKnobs';
 import { getPageLocale, localizedPath } from '../lib/locale';
 import { messages } from '../lib/messages';
 
@@ -14,6 +17,22 @@ interface Props {
 }
 
 const { rig } = Astro.props;
+
+// Amplifierのうち実機前面のノブに対応する項目は図で示し、残りは一覧のまま表示する
+const ampSettings = rig.amplifier.settings.map((setting) => ({
+  ...setting,
+  position: toKnobPosition(setting.label, setting.value),
+}));
+const ampKnobs = ampSettings.filter((setting) => setting.position !== null);
+const modules = [
+  {
+    label: 'Amplifier',
+    module: rig.amplifier,
+    knobs: ampKnobs,
+    settings: ampSettings.filter((setting) => setting.position === null),
+  },
+  { label: 'Cabinet', module: rig.cabinet, knobs: [], settings: rig.cabinet.settings },
+];
 const title = `${rig.name} | Kemper Rig Viewer`;
 const concept = locale === 'en' ? rig.conceptEn : rig.concept;
 const fictionalDescription = locale === 'en' ? 'Fictional Rig. ' : '架空のRig。';
@@ -33,104 +52,121 @@ const description =
     <meta name="twitter:description" content={description} />
   </Fragment>
 
-  <section class="mx-auto w-full max-w-5xl px-4 py-8 sm:py-14" aria-labelledby="rig-title">
-    <a
-      href={localizedPath(locale, '/exhibits/kemper/')}
-      class="text-accent hover:text-fg mb-4 inline-flex min-h-11 items-center gap-2 rounded-sm text-sm underline-offset-4 hover:underline"
-    >
-      <span aria-hidden="true">←</span>
-      {t.backToRigs}
-    </a>
+  <KemperStage>
+    <section class="mx-auto w-full max-w-5xl px-4 py-8 sm:py-14" aria-labelledby="rig-title">
+      <a
+        href={localizedPath(locale, '/exhibits/kemper/')}
+        class="text-accent hover:text-fg mb-4 inline-flex min-h-11 items-center gap-2 rounded-sm text-sm underline-offset-4 hover:underline"
+      >
+        <span aria-hidden="true">←</span>
+        {t.backToRigs}
+      </a>
 
-    <article class="rig" data-rig-details>
-      <header class="rig-display">
-        <h1 id="rig-title" class="text-xl font-semibold sm:text-3xl" lang="en">
-          {rig.name}
-        </h1>
-        {rig.fictional && <p class="rig-credit text-sm">{t.fictionalRig}</p>}
-        {rig.author && <p class="rig-credit text-sm">{rig.author}</p>}
-      </header>
-      {concept && <p class="rig-credit text-sm">{concept}</p>}
-      <section class="rig-chain" aria-labelledby="rig-chain-title">
-        <h2 id="rig-chain-title" class="text-sm font-semibold">
-          {t.signalChain}
-        </h2>
-        <ol class="chain-stages">
-          <li class="chain-edge" lang="en">
-            Input
-          </li>
-          <li class="chain-stage">
-            <span class="stage-label" lang="en">
-              Stomps
-            </span>
-            <span>
-              {rig.beforeStack
-                .map((effect) => (typeof effect === 'string' ? effect : effect.name))
-                .filter(Boolean)
-                .join(' → ') || t.notSet}
-            </span>
-          </li>
-          <li class="chain-stage chain-stack">
-            <span class="stage-label" lang="en">
-              Stack
-            </span>
-            <span lang="en">Amplifier → Cabinet</span>
-          </li>
-          <li class="chain-stage">
-            <span class="stage-label" lang="en">
-              Effects
-            </span>
-            <span>
-              {rig.afterStack
-                .map((effect) => (typeof effect === 'string' ? effect : effect.name))
-                .filter(Boolean)
-                .join(' → ') || t.notSet}
-            </span>
-          </li>
-          <li class="chain-edge" lang="en">
-            Output
-          </li>
-        </ol>
-      </section>
+      <article class="rig" data-rig-details>
+        <header class="rig-display">
+          <h1 id="rig-title" class="text-xl font-semibold sm:text-3xl" lang="en">
+            {rig.name}
+          </h1>
+          {rig.fictional && <p class="rig-credit text-sm">{t.fictionalRig}</p>}
+          {rig.author && <p class="rig-credit text-sm">{rig.author}</p>}
+        </header>
+        {concept && <p class="rig-credit text-sm">{concept}</p>}
+        <section class="rig-chain" aria-labelledby="rig-chain-title">
+          <h2 id="rig-chain-title" class="text-sm font-semibold">
+            {t.signalChain}
+          </h2>
+          <ol class="chain-stages">
+            <li class="chain-edge" lang="en">
+              Input
+            </li>
+            <li class="chain-stage" data-tone="stomps">
+              <span class="stage-label" lang="en">
+                Stomps
+              </span>
+              <span>
+                {rig.beforeStack
+                  .map((effect) => (typeof effect === 'string' ? effect : effect.name))
+                  .filter(Boolean)
+                  .join(' → ') || t.notSet}
+              </span>
+            </li>
+            <li class="chain-stage chain-stack">
+              <span class="stage-label" lang="en">
+                Stack
+              </span>
+              <span lang="en">Amplifier → Cabinet</span>
+            </li>
+            <li class="chain-stage" data-tone="effects">
+              <span class="stage-label" lang="en">
+                Effects
+              </span>
+              <span>
+                {rig.afterStack
+                  .map((effect) => (typeof effect === 'string' ? effect : effect.name))
+                  .filter(Boolean)
+                  .join(' → ') || t.notSet}
+              </span>
+            </li>
+            <li class="chain-edge" lang="en">
+              Output
+            </li>
+          </ol>
+        </section>
 
-      <div data-rig-panel-actions hidden>
-        <div class="flex flex-wrap gap-2" role="group" aria-label={t.bulkActions}>
-          <button type="button" class="panel-action" data-open-panels>
-            {t.openAll}
-          </button>
-          <button type="button" class="panel-action" data-close-panels>
-            {t.closeAll}
-          </button>
+        <div data-rig-panel-actions hidden>
+          <div class="flex flex-wrap gap-2" role="group" aria-label={t.bulkActions}>
+            <button type="button" class="panel-action" data-open-panels>
+              {t.openAll}
+            </button>
+            <button type="button" class="panel-action" data-close-panels>
+              {t.closeAll}
+            </button>
+            {ampKnobs.length > 0 && (
+              <button type="button" class="panel-action" data-toggle-knobs aria-pressed="true">
+                {t.knobView}
+              </button>
+            )}
+          </div>
         </div>
-      </div>
 
-      <div class="rig-modules" lang="en">
-        {[
-          { label: 'Amplifier', module: rig.amplifier },
-          { label: 'Cabinet', module: rig.cabinet },
-        ].map(({ label, module }) => (
-          <details open>
-            <summary>
-              <span class="module-label">{label}</span>
-              <span class="module-name">{module.name}</span>
-            </summary>
-            <dl>
-              {module.settings.map(({ label, value }) => (
-                <div>
-                  <dt>{label}</dt>
-                  <dd>{value}</dd>
-                </div>
-              ))}
-            </dl>
-          </details>
-        ))}
-      </div>
-      <div class="effect-settings">
-        <EffectStage label="Stomps" effects={rig.beforeStack} />
-        <EffectStage label="Effects" effects={rig.afterStack} />
-      </div>
-    </article>
-  </section>
+        <div class="rig-modules" lang="en">
+          {modules.map(({ label, module, knobs, settings }) => (
+            <details open>
+              <summary>
+                <span class="module-label">{label}</span>
+                <span class="module-name">{module.name}</span>
+              </summary>
+              {knobs.length > 0 && (
+                <dl class="knobs">
+                  {knobs.map(({ label, value, position }) => (
+                    <div>
+                      {position && <Knob position={position} />}
+                      <dt>{label}</dt>
+                      <dd>{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+              {settings.length > 0 && (
+                <dl>
+                  {settings.map(({ label, value }) => (
+                    <div>
+                      <dt>{label}</dt>
+                      <dd>{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+            </details>
+          ))}
+        </div>
+        <div class="effect-settings">
+          <EffectStage label="Stomps" tone="stomps" effects={rig.beforeStack} />
+          <EffectStage label="Effects" tone="effects" effects={rig.afterStack} />
+        </div>
+      </article>
+    </section>
+  </KemperStage>
 </BaseLayout>
 
 <script>
@@ -146,6 +182,15 @@ const description =
     };
     openButton.addEventListener('click', () => setPanelsOpen(true));
     closeButton.addEventListener('click', () => setPanelsOpen(false));
+
+    // ノブ表示と一覧表示の切替。図を隠すだけで、項目と値は同じ要素を使う
+    const knobButton = actions.querySelector('[data-toggle-knobs]');
+    const modules = rig.querySelector<HTMLElement>('.rig-modules');
+    knobButton?.addEventListener('click', () => {
+      const showKnobs = knobButton.getAttribute('aria-pressed') !== 'true';
+      knobButton.setAttribute('aria-pressed', String(showKnobs));
+      if (modules) modules.dataset.view = showKnobs ? 'knobs' : 'list';
+    });
     actions.hidden = false;
   }
 </script>
@@ -157,12 +202,19 @@ const description =
     --edge: #3d4c44;
     --signal: #a8e7bf;
     --secondary: #b0c2b7;
+    /* パネル面の質感。EffectStage のスロットでも使う */
+    --panel-face: linear-gradient(#222927, #171c1a);
+    --panel-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08), 0 2px 5px rgb(0 0 0 / 0.45);
     display: grid;
     gap: 1.5rem;
     border: 1px solid var(--edge);
-    border-radius: 0.75rem;
+    /* 実機のアーチ状の上辺を、上側だけ大きくした角丸で表現する */
+    border-radius: clamp(1.5rem, 6vw, 3.5rem) clamp(1.5rem, 6vw, 3.5rem) 0.75rem 0.75rem;
     padding: clamp(0.75rem, 3vw, 1.75rem);
-    background: linear-gradient(150deg, var(--panel), var(--recess));
+    background: linear-gradient(150deg, rgb(27 33 31 / 0.94), rgb(16 22 19 / 0.96));
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.09),
+      0 1.5rem 4rem -1rem rgb(0 0 0 / 0.7);
   }
 
   .rig-display {
@@ -171,12 +223,34 @@ const description =
     align-items: baseline;
     justify-content: space-between;
     gap: 0.5rem 1.5rem;
+    /* アーチの角と表示部が干渉しないよう左右に余白を取る */
+    margin-inline: clamp(0rem, 3vw, 1.5rem);
     padding: clamp(0.85rem, 3vw, 1.4rem);
-    border: 1px solid var(--edge);
+    /* 実機のバックライト付き液晶のように、淡い緑の画面へ暗い文字で表示する */
+    border: 1px solid #0a0d0c;
     border-radius: 0.4rem;
-    background: var(--recess);
-    color: var(--signal);
+    background:
+      repeating-linear-gradient(0deg, rgb(0 0 0 / 0.035) 0 1px, transparent 1px 3px),
+      linear-gradient(#d3e8d6, #b5d3bc);
+    box-shadow:
+      inset 0 2px 6px rgb(0 0 0 / 0.45),
+      0 0 0 3px #0a0d0c,
+      0 0 2rem rgb(168 231 191 / 0.16);
+    color: #0f1f18;
     font-family: var(--font-mono);
+  }
+
+  .rig-display .rig-credit {
+    color: #2a4638;
+  }
+
+  /* モジュールの色分け：Stomps＝暖色、Stack＝緑（既定）、Effects＝シアン */
+  .rig :global([data-tone='stomps']) {
+    --signal: #ecc590;
+  }
+
+  .rig :global([data-tone='effects']) {
+    --signal: #8fdcd8;
   }
 
   .rig-credit,
@@ -208,6 +282,14 @@ const description =
     border-radius: 0.35rem;
   }
 
+  .chain-stage {
+    border-top: 2px solid color-mix(in srgb, var(--signal) 70%, transparent);
+  }
+
+  .chain-stage .stage-label {
+    color: var(--signal);
+  }
+
   .chain-edge,
   .stage-label {
     font-family: var(--font-mono);
@@ -228,7 +310,8 @@ const description =
     border: 1px solid var(--edge);
     border-radius: 0.4rem;
     padding-inline: 0.8rem;
-    background: var(--panel);
+    background: var(--panel-face);
+    box-shadow: var(--panel-shadow);
     color: var(--signal);
     font-size: 0.875rem;
     cursor: pointer;
@@ -241,8 +324,10 @@ const description =
 
   .rig-modules details {
     border: 1px solid var(--edge);
+    border-top: 2px solid color-mix(in srgb, var(--signal) 70%, transparent);
     border-radius: 0.4rem;
-    background: var(--panel);
+    background: var(--panel-face);
+    box-shadow: var(--panel-shadow);
   }
 
   .rig-modules summary {
@@ -293,6 +378,34 @@ const description =
     font-size: 0.9375rem;
     font-variant-numeric: tabular-nums;
     overflow-wrap: anywhere;
+  }
+
+  /* ノブ表示：実機の緑のパネルにノブが並ぶ様子を再現する */
+  .rig-modules:not([data-view='list']) .knobs {
+    grid-template-columns: repeat(auto-fit, minmax(4.75rem, 1fr));
+    gap: 0.75rem 0.25rem;
+    padding: 1rem 0.5rem 0.75rem;
+    background: linear-gradient(rgb(52 98 76 / 0.5), rgb(36 74 56 / 0.5));
+  }
+
+  .rig-modules:not([data-view='list']) .knobs > div {
+    justify-items: center;
+    padding: 0;
+    box-shadow: none;
+    text-align: center;
+  }
+
+  .rig-modules:not([data-view='list']) .knobs dt {
+    margin-top: 0.35rem;
+    color: var(--color-fg);
+  }
+
+  .rig-modules[data-view='list'] .knobs :global(.knob) {
+    display: none;
+  }
+
+  .panel-action[aria-pressed='true'] {
+    border-color: var(--signal);
   }
 
   .effect-settings {
