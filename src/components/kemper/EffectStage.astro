@@ -3,6 +3,7 @@ import type { CollectionEntry } from 'astro:content';
 
 import { getPageLocale } from '../../lib/locale';
 import { messages } from '../../lib/messages';
+import EffectStatus from './EffectStatus.astro';
 
 type Rig = CollectionEntry<'kemperRigs'>['data'];
 
@@ -45,12 +46,12 @@ const t = messages[getPageLocale(Astro.url.pathname).locale];
                   {effect.slot}
                 </span>
                 <span lang="en">{effect.name}</span>
-                <span class="slot-status" data-enabled={effect.enabled}>
-                  {effect.enabled === undefined
-                    ? t.statusUnavailable
-                    : effect.enabled
-                      ? 'ON'
-                      : 'OFF'}
+                <span class="slot-status">
+                  <EffectStatus
+                    name={effect.name}
+                    category={effect.category}
+                    enabled={effect.enabled}
+                  />
                 </span>
               </summary>
               {effect.parameters?.length ? (
@@ -156,28 +157,6 @@ const t = messages[getPageLocale(Astro.url.pathname).locale];
   .slot-status {
     display: inline-block;
     margin-inline-start: 0.4rem;
-  }
-
-  .slot-status[data-enabled='true'] {
-    color: var(--signal);
-  }
-
-  .slot-status[data-enabled='true']::before,
-  .slot-status[data-enabled='false']::before {
-    content: '';
-    display: inline-block;
-    width: 0.4rem;
-    height: 0.4rem;
-    margin-inline-end: 0.3rem;
-    border: 1px solid currentColor;
-    border-radius: 50%;
-    vertical-align: 0.08em;
-  }
-
-  .slot-status[data-enabled='true']::before {
-    background: currentColor;
-    /* 点灯中のLEDらしく、わずかに発光させる */
-    box-shadow: 0 0 0.45rem currentColor;
   }
 
   dl,

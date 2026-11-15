@@ -11,6 +11,7 @@ Rigの表示データは [src/content/kemper-rigs](../src/content/kemper-rigs) �
 - Rig ManagerのRigタブで確認したRig Volumeは、任意の `rigVolume` に `0.0 dB` のような表示文字列で記録します。最小値は `−∞` または `-96 dB` で記録でき、画面では `−∞` と表示します。
 - `beforeStack`（A・B・C・D）と `afterStack`（X・MOD・DLY・REV）にエフェクトを信号順に記録します。既存の文字列の配列は、名前のみ取得できた形式として表示されます。
 - 詳細を記録する場合は、各要素に `slot`、`name`、取得できた場合は `enabled` と `parameters` を指定します。空スロットは `name: null` で記録します。`enabled: false` はOFF、`enabled` の省略は状態未取得です。
+- エフェクトの `category` にRig Managerのカテゴリを対応する英小文字・ハイフン形式で記録します（例としてTreble Boosterは `booster`、Graphic Equalizerは `equalizer`、Crystal Delayは `pitch-delay`）。指定できる値は [カテゴリ定義](../src/lib/kemperEffectCategories.ts) を参照してください。カテゴリを省略した場合は既存データ用の名称表を参照し、対応がなければグレーで表示します。
 - エフェクトの各パラメータは `label` と `value` を持ちます。数値（0を含む）には必要に応じて `unit` を付けます。選択肢・文字列は文字列で、ON/OFFは真偽値で記録します。`value: null` は未設定、`parameters` の省略はパラメータ未取得、空配列は設定項目なしを表します。
 
 実際のRigを追加する際は、公開する項目を実機またはRig Managerで確認して記入します。JSONの追加・変更後は `npm run verify` を実行します。

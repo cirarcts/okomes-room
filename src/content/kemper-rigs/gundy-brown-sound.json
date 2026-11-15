@@ -122,6 +122,7 @@
     {
       "slot": "A",
       "name": "Treble Booster",
+      "category": "booster",
       "enabled": true,
       "parameters": [
         {
@@ -145,6 +146,7 @@
     {
       "slot": "B",
       "name": "Graphic Equalizer",
+      "category": "equalizer",
       "enabled": true,
       "parameters": [
         {
@@ -204,6 +206,7 @@
     {
       "slot": "C",
       "name": "Phaser",
+      "category": "phaser",
       "enabled": true,
       "parameters": [
         {
@@ -251,6 +254,7 @@
     {
       "slot": "D",
       "name": "Noise Gate 2:1",
+      "category": "noise-gate",
       "enabled": true,
       "parameters": [
         {
@@ -264,6 +268,7 @@
     {
       "slot": "X",
       "name": "Graphic Equalizer",
+      "category": "equalizer",
       "enabled": true,
       "parameters": [
         {
@@ -323,6 +328,7 @@
     {
       "slot": "MOD",
       "name": "Air Chorus",
+      "category": "chorus",
       "enabled": true,
       "parameters": [
         {
@@ -346,6 +352,7 @@
     {
       "slot": "DLY",
       "name": "TwoTap Delay",
+      "category": "delay",
       "enabled": true,
       "parameters": [
         {
@@ -441,6 +448,7 @@
     {
       "slot": "REV",
       "name": "Legacy Reverb",
+      "category": "reverb",
       "enabled": true,
       "parameters": [
         {
