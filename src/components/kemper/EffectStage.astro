@@ -8,14 +8,16 @@ type Rig = CollectionEntry<'kemperRigs'>['data'];
 
 interface Props {
   label: string;
+  /** 色分けの種類。配色は RigDetailsPage の --signal で決まる */
+  tone: 'stomps' | 'effects';
   effects: Rig['beforeStack'] | Rig['afterStack'];
 }
 
-const { label, effects } = Astro.props;
+const { label, tone, effects } = Astro.props;
 const t = messages[getPageLocale(Astro.url.pathname).locale];
 ---
 
-<section class="effect-group" aria-label={label}>
+<section class="effect-group" data-tone={tone} aria-label={label}>
   <h2 class="stage-heading" lang="en">
     {label}
   </h2>
@@ -105,6 +107,10 @@ const t = messages[getPageLocale(Astro.url.pathname).locale];
     font-family: var(--font-mono);
   }
 
+  .stage-heading {
+    color: var(--signal);
+  }
+
   .effect-slots {
     display: grid;
     gap: 0.4rem;
@@ -113,8 +119,10 @@ const t = messages[getPageLocale(Astro.url.pathname).locale];
 
   .slot {
     border: 1px solid var(--edge);
+    border-top: 2px solid color-mix(in srgb, var(--signal) 70%, transparent);
     border-radius: 0.4rem;
-    background: var(--panel);
+    background: var(--panel-face);
+    box-shadow: var(--panel-shadow);
     overflow-wrap: anywhere;
   }
 
@@ -162,6 +170,8 @@ const t = messages[getPageLocale(Astro.url.pathname).locale];
 
   .slot-status[data-enabled='true']::before {
     background: currentColor;
+    /* 点灯中のLEDらしく、わずかに発光させる */
+    box-shadow: 0 0 0.45rem currentColor;
   }
 
   dl,

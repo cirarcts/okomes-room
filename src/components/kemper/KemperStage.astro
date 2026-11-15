@@ -1,0 +1,70 @@
+---
+/*
+ * Kemper展示室の背景。ノブを囲むLEDリングを、大きな光の輪として配置する。
+ * 製品写真は使わず、CSSのグラデーションとマスクだけで描画する。
+ */
+---
+
+<div class="kemper-stage">
+  <slot />
+</div>
+
+<style>
+  .kemper-stage {
+    position: relative;
+    isolation: isolate;
+    flex: 1;
+    overflow: hidden;
+    background:
+      radial-gradient(30rem 30rem at 85% 6rem, rgb(120 255 220 / 0.07), transparent 70%),
+      linear-gradient(#090d0d, var(--color-base) 70%);
+  }
+
+  .kemper-stage::before,
+  .kemper-stage::after {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    pointer-events: none;
+    /* -135°から270°の範囲に目盛りを並べ、--lit の角度までを点灯させる */
+    background: conic-gradient(
+      from -135deg,
+      rgb(190 255 240 / 0.85) 0 var(--lit),
+      rgb(120 160 150 / 0.16) var(--lit) 270deg,
+      transparent 270deg
+    );
+    mask:
+      repeating-conic-gradient(from -135deg, #000 0 2.4deg, transparent 2.4deg 10deg),
+      radial-gradient(closest-side, transparent 80%, #000 81% 93%, transparent 94%);
+    mask-composite: intersect;
+    filter: drop-shadow(0 0 0.6rem rgb(120 255 220 / 0.55));
+    /* スマートフォンでは本文に近いため光量を抑える */
+    opacity: 0.45;
+  }
+
+  .kemper-stage::before {
+    --lit: 170deg;
+    top: -6rem;
+    right: max(-8rem, calc(50% - 46rem));
+    width: clamp(16rem, 42vw, 30rem);
+  }
+
+  .kemper-stage::after {
+    --lit: 80deg;
+    bottom: 2rem;
+    left: max(-7rem, calc(50% - 44rem));
+    width: clamp(12rem, 30vw, 22rem);
+  }
+
+  @media (min-width: 48rem) {
+    .kemper-stage::before {
+      opacity: 1;
+    }
+
+    .kemper-stage::after {
+      opacity: 0.7;
+    }
+  }
+</style>
