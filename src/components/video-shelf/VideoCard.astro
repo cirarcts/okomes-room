@@ -14,6 +14,13 @@ interface Props {
   /** 種別。手動で登録した動画などで未取得の場合は省略する。 */
   kind?: VideoKind;
   durationSeconds?: number;
+  /** 公開元チャンネルのカテゴリの id（絞り込みに使う） */
+  categories: readonly string[];
+  /**
+   * 表示の大きさ。`grid` は一覧のグリッド、`shelf` は横スクロールの棚、
+   * `compact` は管理人コーナー用の小さめのカード。
+   */
+  variant?: 'grid' | 'shelf' | 'compact';
   /** 再生ステージで選択中かどうか */
   current?: boolean;
 }
@@ -28,6 +35,8 @@ const {
   channelUrl,
   kind,
   durationSeconds,
+  categories,
+  variant = 'grid',
   current,
 } = Astro.props;
 const t = messages[locale];
@@ -37,9 +46,15 @@ const kindLabel = kind === 'live' ? t.kindLive : kind === 'short' ? t.kindShort 
 ---
 
 <li
-  class="bg-surface border-muted/25 has-[[aria-current=true]]:border-accent/70 grid content-start overflow-hidden rounded-lg border transition-colors"
+  class:list={[
+    // sr-only の要素が横スクロールの棚の外へはみ出さないよう、カードを配置の基準にする。
+    'bg-surface border-muted/25 has-[[aria-current=true]]:border-accent/70 relative grid content-start overflow-hidden rounded-lg border transition-colors',
+    variant === 'shelf' && 'w-64 shrink-0 snap-start sm:w-72',
+    variant === 'compact' && 'w-48 shrink-0 snap-start sm:w-56',
+  ]}
   data-video-item
   data-kind={kind}
+  data-categories={categories.join(' ')}
   data-search={`${title} ${channelName}`}
 >
   {/* JavaScriptが有効なときは再生ステージで再生し、無効なときはYouTubeの視聴ページを開く。 */}
@@ -63,7 +78,12 @@ const kindLabel = kind === 'live' ? t.kindLive : kind === 'short' ? t.kindShort 
       decoding="async"
       class="aspect-video w-full bg-black object-cover opacity-90 transition-opacity group-hover:opacity-100"
     />
-    <span class="group-hover:text-accent line-clamp-2 px-4 font-semibold transition-colors">
+    <span
+      class:list={[
+        'group-hover:text-accent line-clamp-2 px-4 font-semibold transition-colors',
+        variant === 'compact' && 'text-sm',
+      ]}
+    >
       {title}
     </span>
   </a>

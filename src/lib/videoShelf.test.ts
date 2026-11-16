@@ -5,6 +5,10 @@ import {
   VIDEO_ID_PATTERN,
   buildShelf,
   classifyVideo,
+  isFilterActive,
+  sortCategories,
+  sortChannels,
+  validateShelfConfig,
   formatDuration,
   matchesVideoFilter,
   normalizeSearchText,
@@ -18,9 +22,22 @@ import {
 } from './videoShelf';
 
 // テスト用の架空データ（実在のIDではない）
+function channel(
+  overrides: Partial<ShelfChannel> & Pick<ShelfChannel, 'id' | 'name'>,
+): ShelfChannel {
+  return {
+    channelId: 'UCaaaaaaaaaaaaaaaaaaaaaa',
+    categories: [],
+    priority: 0,
+    owner: false,
+    enabled: true,
+    ...overrides,
+  };
+}
+
 const channels: ShelfChannel[] = [
-  { id: 'alpha', channelId: 'UCaaaaaaaaaaaaaaaaaaaaaa', name: 'Alpha', enabled: true },
-  { id: 'beta', channelId: 'UCbbbbbbbbbbbbbbbbbbbbbb', name: 'Beta', enabled: false },
+  channel({ id: 'alpha', name: 'Alpha' }),
+  channel({ id: 'beta', name: 'Beta', channelId: 'UCbbbbbbbbbbbbbbbbbbbbbb', enabled: false }),
 ];
 
 function video(id: string, channel: string, publishedAt: string, title = id): ShelfVideo {
@@ -140,26 +157,106 @@ describe('検索と絞り込み', () => {
     expect(parseSearchTerms('   ')).toEqual([]);
   });
 
-  const text = normalizeSearchText('【BABYMETAL】Arkadia - Guitar Cover cir*');
+  const target = {
+    searchText: normalizeSearchText('【BABYMETAL】Arkadia - Guitar Cover cir*'),
+    kind: 'regular' as const,
+    categories: ['music', 'game'],
+  };
+  const all = { terms: [], kind: 'all', category: 'all' } as const;
 
   it('すべての語を含む場合だけ一致する', () => {
-    expect(matchesVideoFilter(text, 'regular', { terms: ['arkadia', 'cover'], kind: 'all' })).toBe(
-      true,
-    );
-    expect(matchesVideoFilter(text, 'regular', { terms: ['arkadia', 'solo'], kind: 'all' })).toBe(
-      false,
-    );
-    expect(matchesVideoFilter(text, 'regular', { terms: [], kind: 'all' })).toBe(true);
+    expect(matchesVideoFilter(target, { ...all, terms: ['arkadia', 'cover'] })).toBe(true);
+    expect(matchesVideoFilter(target, { ...all, terms: ['arkadia', 'solo'] })).toBe(false);
+    expect(matchesVideoFilter(target, all)).toBe(true);
   });
 
   it('種別を指定すると、種別が一致するものだけが残る', () => {
-    expect(matchesVideoFilter(text, 'short', { terms: [], kind: 'short' })).toBe(true);
-    expect(matchesVideoFilter(text, 'regular', { terms: [], kind: 'short' })).toBe(false);
+    expect(matchesVideoFilter({ ...target, kind: 'short' }, { ...all, kind: 'short' })).toBe(true);
+    expect(matchesVideoFilter(target, { ...all, kind: 'short' })).toBe(false);
   });
 
   it('種別が未取得の動画は「すべて」でだけ表示する', () => {
-    expect(matchesVideoFilter(text, undefined, { terms: [], kind: 'all' })).toBe(true);
-    expect(matchesVideoFilter(text, undefined, { terms: [], kind: 'regular' })).toBe(false);
+    const unknown = { ...target, kind: undefined };
+    expect(matchesVideoFilter(unknown, all)).toBe(true);
+    expect(matchesVideoFilter(unknown, { ...all, kind: 'regular' })).toBe(false);
+  });
+
+  it('カテゴリは公開元チャンネルのいずれかのカテゴリと一致すればよい', () => {
+    expect(matchesVideoFilter(target, { ...all, category: 'game' })).toBe(true);
+    expect(matchesVideoFilter(target, { ...all, category: 'racing' })).toBe(false);
+    expect(matchesVideoFilter({ ...target, categories: [] }, { ...all, category: 'music' })).toBe(
+      false,
+    );
+  });
+
+  it('条件を組み合わせると、すべてを満たすものだけが残る', () => {
+    expect(
+      matchesVideoFilter(target, { terms: ['arkadia'], kind: 'regular', category: 'music' }),
+    ).toBe(true);
+    expect(
+      matchesVideoFilter(target, { terms: ['arkadia'], kind: 'regular', category: 'racing' }),
+    ).toBe(false);
+  });
+
+  it('いずれかの条件があれば絞り込み中とみなす', () => {
+    expect(isFilterActive(all)).toBe(false);
+    expect(isFilterActive({ ...all, terms: ['a'] })).toBe(true);
+    expect(isFilterActive({ ...all, kind: 'live' })).toBe(true);
+    expect(isFilterActive({ ...all, category: 'music' })).toBe(true);
+  });
+});
+
+describe('チャンネルの並び順', () => {
+  it('優先度の高い順、同じ優先度なら名前順', () => {
+    const sorted = sortChannels([
+      channel({ id: 'c', name: 'ちるにとら' }),
+      channel({ id: 'a', name: 'FIA WEC' }),
+      channel({ id: 'b', name: 'Petra', priority: 10 }),
+      channel({ id: 'd', name: 'Low', priority: -1 }),
+    ]);
+    expect(sorted.map((c) => c.id)).toEqual(['b', 'a', 'c', 'd']);
+  });
+
+  it('カテゴリは order の小さい順', () => {
+    const sorted = sortCategories([
+      { id: 'game', name: 'ゲーム', nameEn: 'Gaming', order: 40 },
+      { id: 'racing', name: 'レース', nameEn: 'Racing', order: 10 },
+    ]);
+    expect(sorted.map((c) => c.id)).toEqual(['racing', 'game']);
+  });
+});
+
+describe('validateShelfConfig', () => {
+  const categories = [{ id: 'music', name: '音楽', nameEn: 'Music', order: 1 }];
+
+  it('整合していれば何もしない', () => {
+    expect(() =>
+      validateShelfConfig(
+        [
+          channel({ id: 'a', name: 'A', categories: ['music'], owner: true }),
+          channel({ id: 'b', name: 'B' }),
+        ],
+        categories,
+      ),
+    ).not.toThrow();
+  });
+
+  it('未定義のカテゴリを参照するとエラー', () => {
+    expect(() =>
+      validateShelfConfig([channel({ id: 'a', name: 'A', categories: ['musik'] })], categories),
+    ).toThrow(/musik/);
+  });
+
+  it('管理人のチャンネルが2つ以上あるとエラー', () => {
+    expect(() =>
+      validateShelfConfig(
+        [
+          channel({ id: 'a', name: 'A', owner: true }),
+          channel({ id: 'b', name: 'B', owner: true }),
+        ],
+        categories,
+      ),
+    ).toThrow(/1つまで/);
   });
 });
 

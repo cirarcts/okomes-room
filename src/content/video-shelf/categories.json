@@ -1,0 +1,6 @@
+[
+  { "id": "racing", "name": "レース", "nameEn": "Racing", "order": 10 },
+  { "id": "vtuber", "name": "VTuber・配信者", "nameEn": "VTubers & Streamers", "order": 20 },
+  { "id": "music", "name": "音楽", "nameEn": "Music", "order": 30 },
+  { "id": "game", "name": "ゲーム", "nameEn": "Gaming", "order": 40 }
+]

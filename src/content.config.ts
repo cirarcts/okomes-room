@@ -86,8 +86,24 @@ const videoChannel = z.object({
     .regex(SLUG_PATTERN, 'チャンネルのidは英小文字・数字・ハイフンで指定してください。'),
   channelId: z.string().regex(CHANNEL_ID_PATTERN, 'チャンネルIDは UC から始まる24文字です。'),
   name: z.string().min(1),
-  category: z.string().min(1).optional(),
+  // カテゴリの id（categories.json）。存在しない id はページ生成時にエラーにする。
+  categories: z.array(z.string().regex(SLUG_PATTERN)).default([]),
+  // 大きいほど上に並べる。同じ値なら名前順。
+  priority: z.number().int().default(0),
+  // 管理人自身のチャンネル。推しチャンネルとは分けて、ページ下部の専用コーナーに表示する（1つまで）。
+  owner: z.boolean().default(false),
   enabled: z.boolean().default(true),
+});
+
+// 動画の棚：チャンネルに付けるカテゴリの定義。表示順は `order` の小さい順。
+const videoCategories = defineCollection({
+  loader: file('./src/content/video-shelf/categories.json'),
+  schema: z.object({
+    id: z.string().regex(SLUG_PATTERN),
+    name: z.string().min(1),
+    nameEn: z.string().min(1),
+    order: z.number().int(),
+  }),
 });
 
 // 動画の棚：表示対象として手動で選んだチャンネル。`id` は設定内の固定slug。
@@ -166,4 +182,10 @@ const shelfVideos = defineCollection({
   }),
 });
 
-export const collections = { kemperRigs, videoChannels, shelfVideos, channelUploads };
+export const collections = {
+  kemperRigs,
+  videoCategories,
+  videoChannels,
+  shelfVideos,
+  channelUploads,
+};

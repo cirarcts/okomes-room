@@ -3,6 +3,31 @@
     "id": "cir-arc-ts",
     "channelId": "UCfwV2t6PYQ--dknV_XfpUWw",
     "name": "cir*",
-    "category": "music"
+    "categories": ["music", "game"],
+    "owner": true
+  },
+  {
+    "id": "fia-wec",
+    "channelId": "UCwU7U7PiarcJKLjDJTnANjw",
+    "name": "FIA World Endurance Championship",
+    "categories": ["racing"]
+  },
+  {
+    "id": "petra-gurin",
+    "channelId": "UCgA2jKRkqpY_8eysPUs8sjw",
+    "name": "Petra Gurin【NIJISANJI EN】",
+    "categories": ["vtuber"]
+  },
+  {
+    "id": "yorushika-n-buna",
+    "channelId": "UCRIgIJQWuBJ0Cv_VlU3USNA",
+    "name": "ヨルシカ / n-buna Official",
+    "categories": ["music"]
+  },
+  {
+    "id": "tirunitora",
+    "channelId": "UCoNHp6fxSaINqFqMWX7i_1A",
+    "name": "ちるにとら",
+    "categories": ["game"]
   }
 ]
