@@ -1,9 +1,11 @@
 import { defineCollection } from 'astro:content';
-import { file, glob } from 'astro/loaders';
+import { file, glob, type Loader } from 'astro/loaders';
 import { z } from 'astro/zod';
 
+import videoChannelsJson from './content/video-shelf/channels.json';
 import { EFFECT_CATEGORIES } from './lib/kemperEffectCategories';
 import { CHANNEL_ID_PATTERN, VIDEO_ID_PATTERN } from './lib/videoShelf';
+import { fetchChannelUploads } from './lib/youtubeUploads';
 
 const setting = z.object({
   label: z.string().min(1),
@@ -76,17 +78,76 @@ const kemperRigs = defineCollection({
 
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+const VIDEO_CHANNELS_FILE = './src/content/video-shelf/channels.json';
+
+const videoChannel = z.object({
+  id: z
+    .string()
+    .regex(SLUG_PATTERN, 'チャンネルのidは英小文字・数字・ハイフンで指定してください。'),
+  channelId: z.string().regex(CHANNEL_ID_PATTERN, 'チャンネルIDは UC から始まる24文字です。'),
+  name: z.string().min(1),
+  category: z.string().min(1).optional(),
+  enabled: z.boolean().default(true),
+});
+
 // 動画の棚：表示対象として手動で選んだチャンネル。`id` は設定内の固定slug。
 const videoChannels = defineCollection({
-  loader: file('./src/content/video-shelf/channels.json'),
+  loader: file(VIDEO_CHANNELS_FILE),
+  schema: videoChannel,
+});
+
+/**
+ * 有効なチャンネルの新着をYouTube Data APIからビルド時に取得する。
+ * 結果はAstroのデータストア（Git管理外）にのみ置き、ビルドごとに取り直す。
+ * APIキーが未設定の場合や取得に失敗した場合も、ビルドは止めない。
+ */
+function youtubeUploadsLoader(): Loader {
+  return {
+    name: 'youtube-uploads',
+    load: async ({ store, logger, parseData }) => {
+      store.clear();
+      // サーバー側の環境変数（`.env` を含む）。クライアントには渡らない。
+      const apiKey: unknown = import.meta.env.YOUTUBE_API_KEY;
+      if (typeof apiKey !== 'string' || apiKey === '') {
+        logger.info('YOUTUBE_API_KEY が未設定のため、チャンネルの新着取得を省略します。');
+        return;
+      }
+
+      const channels = z
+        .array(videoChannel)
+        .parse(videoChannelsJson)
+        .filter((channel) => channel.enabled);
+      const results = await fetchChannelUploads(channels, apiKey);
+
+      for (const result of results) {
+        if (result.status === 'error') {
+          logger.warn(`チャンネル "${result.channel}" の新着を取得できませんでした。`);
+        }
+        const data = await parseData({ id: result.channel, data: { ...result } });
+        store.set({ id: result.channel, data });
+      }
+      logger.info(
+        `${results.filter((result) => result.status === 'ok').length}/${results.length} チャンネルの新着を取得しました。`,
+      );
+    },
+  };
+}
+
+// 動画の棚：チャンネルごとの新着（自動取得）。`id` はチャンネルのslug。
+const channelUploads = defineCollection({
+  loader: youtubeUploadsLoader(),
   schema: z.object({
-    id: z
-      .string()
-      .regex(SLUG_PATTERN, 'チャンネルのidは英小文字・数字・ハイフンで指定してください。'),
-    channelId: z.string().regex(CHANNEL_ID_PATTERN, 'チャンネルIDは UC から始まる24文字です。'),
-    name: z.string().min(1),
-    category: z.string().min(1).optional(),
-    enabled: z.boolean().default(true),
+    channel: z.string().regex(SLUG_PATTERN),
+    status: z.enum(['ok', 'error']),
+    fetchedAt: z.coerce.date(),
+    videos: z.array(
+      z.object({
+        id: z.string().regex(VIDEO_ID_PATTERN),
+        title: z.string().min(1),
+        publishedAt: z.coerce.date(),
+        thumbnailUrl: z.url().optional(),
+      }),
+    ),
   }),
 });
 
@@ -101,4 +162,4 @@ const shelfVideos = defineCollection({
   }),
 });
 
-export const collections = { kemperRigs, videoChannels, shelfVideos };
+export const collections = { kemperRigs, videoChannels, shelfVideos, channelUploads };

@@ -1,0 +1,59 @@
+---
+import type { Locale } from '../../lib/locale';
+import { messages } from '../../lib/messages';
+import { youtubeWatchUrl } from '../../lib/videoShelf';
+
+interface Props {
+  locale: Locale;
+  videoId: string;
+  title: string;
+  publishedAt: Date;
+  thumbnailUrl: string;
+  channelName: string;
+  channelUrl: string;
+  /** 再生ステージで選択中かどうか */
+  current?: boolean;
+}
+
+const { locale, videoId, title, publishedAt, thumbnailUrl, channelName, channelUrl, current } =
+  Astro.props;
+const t = messages[locale];
+const dateFormat = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'Asia/Tokyo' });
+---
+
+<li class="bg-surface border-muted/25 has-[[aria-current=true]]:border-accent/70 grid content-start overflow-hidden rounded-lg border transition-colors">
+  {/* JavaScriptが有効なときは再生ステージで再生し、無効なときはYouTubeの視聴ページを開く。 */}
+  <a
+    href={youtubeWatchUrl(videoId)}
+    class="group grid content-start gap-3 pb-4 outline-offset-[-2px]"
+    data-video-card
+    data-video-id={videoId}
+    data-title={title}
+    data-channel-name={channelName}
+    data-channel-url={channelUrl}
+    aria-current={current ? 'true' : undefined}
+  >
+    <img
+      src={thumbnailUrl}
+      alt=""
+      width="320"
+      height="180"
+      loading="lazy"
+      decoding="async"
+      class="aspect-video w-full bg-black object-cover opacity-90 transition-opacity group-hover:opacity-100"
+    />
+    <span class="group-hover:text-accent line-clamp-2 px-4 font-semibold transition-colors">
+      {title}
+    </span>
+  </a>
+  {/* 公開元を明示する。チャンネル名はYouTubeのチャンネルページへのリンク。 */}
+  <p class="text-muted -mt-2 flex flex-wrap justify-between gap-x-3 px-4 pb-4 text-sm">
+    <a href={channelUrl} class="hover:text-fg underline-offset-4 hover:underline">
+      {channelName}
+    </a>
+    <time datetime={publishedAt.toISOString().slice(0, 10)}>
+      <span class="sr-only">{t.publishedOn}: </span>
+      {dateFormat.format(publishedAt)}
+    </time>
+  </p>
+</li>
