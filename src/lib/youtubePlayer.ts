@@ -117,29 +117,45 @@ const READY_TIMEOUT_MS = 15_000;
 /**
  * 作成済みのiframeをAPIで制御できるようにする。
  * プレイヤーがAPIの呼び出しを受け付けるのは `onReady` 以降のため、それまで解決しない。
+ * スクリプトの読み込みから `onReady` までを合わせて待ち時間を制限し、超えたら失敗として扱う
+ * （呼び出し側は通常の埋め込みとして再生を続ける）。
  */
-export async function attachPlayer(
+export function attachPlayer(
   iframe: HTMLIFrameElement,
   handlers: PlayerHandlers,
 ): Promise<YouTubePlayer> {
-  const YT = await loadIframeApi();
   return new Promise<YouTubePlayer>((resolve, reject) => {
-    const timer = window.setTimeout(
-      () => reject(new Error('YouTubeプレイヤーの準備が完了しませんでした。')),
-      READY_TIMEOUT_MS,
-    );
-    const player = new YT.Player(iframe, {
-      events: {
-        onReady: () => {
-          window.clearTimeout(timer);
-          handlers.onReady?.();
-          resolve(player);
-        },
-        onStateChange: (event) => handlers.onStateChange?.(event.data),
-        onError: (event) => handlers.onError?.(event.data),
-        onAutoplayBlocked: handlers.onAutoplayBlocked,
-      },
-    });
+    let settled = false;
+    const timer = window.setTimeout(() => {
+      settled = true;
+      reject(new Error('YouTubeプレイヤーの準備が時間内に完了しませんでした。'));
+    }, READY_TIMEOUT_MS);
+    const fail = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      reject(error);
+    };
+
+    loadIframeApi()
+      .then((YT) => {
+        if (settled) return;
+        const player = new YT.Player(iframe, {
+          events: {
+            onReady: () => {
+              if (settled) return;
+              settled = true;
+              window.clearTimeout(timer);
+              handlers.onReady?.();
+              resolve(player);
+            },
+            onStateChange: (event) => handlers.onStateChange?.(event.data),
+            onError: (event) => handlers.onError?.(event.data),
+            onAutoplayBlocked: handlers.onAutoplayBlocked,
+          },
+        });
+      })
+      .catch(fail);
   });
 }
 

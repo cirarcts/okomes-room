@@ -158,6 +158,18 @@ export function initVideoShelfPlayer(): void {
     }
   };
 
+  // 再生できなかった動画が、再試行で再生できた場合は印を外す。
+  const clearUnplayable = (videoId: string) => {
+    if (!unplayable.delete(videoId)) return;
+    for (const card of cards) {
+      if (card.dataset.videoId === videoId) {
+        card.closest<HTMLElement>('[data-video-item]')?.removeAttribute('data-unplayable');
+      }
+    }
+    setMessage('');
+    updateControls();
+  };
+
   const errorMessage = (kind: PlayerErrorKind) =>
     ({
       notFound: text('msgNotFound'),
@@ -189,6 +201,7 @@ export function initVideoShelfPlayer(): void {
   };
 
   const handleStateChange = (state: number) => {
+    if (state === PlayerState.PLAYING && currentId) clearUnplayable(currentId);
     if (state === PlayerState.ENDED && autoAdvance) advance();
   };
 
