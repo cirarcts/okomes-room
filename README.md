@@ -5,7 +5,7 @@
 管理者 okome の趣味・記録・研究・制作物を自由に蓄積・公開する個人Webサイトです。
 「夜の秘密基地のような、落ち着いた少し近未来的なおへや」をテーマに、展示物ごとに独自のデザインとインタラクティブな機能を持つ展示空間を目指します。
 
-**現在の状態：** 初期構築と共通ヘッダー・ナビゲーションまで完了。各エリアの中身は「準備中」の仮ページです。
+**現在の状態：** 展示室に「Kemper Rig Viewer」と「動画の棚」を公開しています。ほかのエリアは「準備中」の仮ページです。
 
 ## 主なエリア（予定）
 
@@ -50,5 +50,5 @@ npm run verify
 | [docs/development.md](docs/development.md)   | 開発環境、コマンド、ブランチ運用             |
 | [docs/deployment.md](docs/deployment.md)     | ビルド、CI、GitHub Pages への公開手順        |
 | [docs/security.md](docs/security.md)         | 公開情報・秘密情報・外部コンテンツの取り扱い |
-
-`docs/content.md`（コンテンツ構造・スキーマ・記録の追加方法）は、最初のコンテンツスキーマを実装する際に追加します。
+| [docs/content.md](docs/content.md)           | コンテンツ構造、スキーマ、記録の追加方法     |
+| [docs/video-shelf.md](docs/video-shelf.md)   | 動画の棚の調査結果・設計・開発計画           |

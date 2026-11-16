@@ -1,0 +1,279 @@
+---
+import { getCollection } from 'astro:content';
+
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getPageLocale, localizedPath } from '../lib/locale';
+import { messages } from '../lib/messages';
+import {
+  EMBED_BASE_URL,
+  buildShelf,
+  youtubeChannelUrl,
+  youtubeThumbnailUrl,
+  youtubeWatchUrl,
+} from '../lib/videoShelf';
+
+const { locale } = getPageLocale(Astro.url.pathname);
+const t = messages[locale];
+
+const channels = (await getCollection('videoChannels')).map(({ data }) => data);
+const shelf = buildShelf(
+  channels,
+  (await getCollection('shelfVideos')).map(({ data }) => data),
+);
+const activeChannels = channels
+  .filter((channel) => channel.enabled)
+  .sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+const first = shelf[0];
+
+const dateFormat = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'Asia/Tokyo' });
+const countLabel =
+  locale === 'en' && shelf.length === 1
+    ? '1 video'
+    : t.videoCount.replace('{count}', String(shelf.length));
+---
+
+<BaseLayout title={t.videoShelfTitle} description={t.videoShelfDescription}>
+  <section class="mx-auto w-full max-w-6xl px-4 py-8 sm:py-14" aria-labelledby="video-shelf-title">
+    <a
+      href={localizedPath(locale, '/exhibits/')}
+      class="text-accent hover:text-fg mb-4 inline-flex min-h-11 items-center gap-2 rounded-sm text-sm underline-offset-4 hover:underline"
+    >
+      <span aria-hidden="true">←</span>
+      {t.backToExhibits}
+    </a>
+    <header class="mb-6 grid gap-2">
+      {locale === 'ja' && (
+        <p class="text-accent font-mono text-sm tracking-widest" lang="en">
+          Video Shelf
+        </p>
+      )}
+      <h1 id="video-shelf-title" class="text-2xl font-bold sm:text-4xl">
+        {t.videoShelfTitle}
+      </h1>
+      <p class="text-muted">{t.videoShelfDescription}</p>
+    </header>
+
+    {first ? (
+      <>
+        {/* 再生ステージ。JavaScriptが無効な場合は、サムネイルからYouTubeの視聴ページへ移動する。 */}
+        <div
+          class="mx-auto mb-10 grid w-full max-w-4xl gap-3"
+          data-video-stage
+          data-embed-base={EMBED_BASE_URL}
+        >
+          <div class="border-accent/30 relative aspect-video w-full overflow-hidden rounded-lg border bg-black shadow-[0_0_40px_-12px] shadow-cyan-400/30">
+            <a
+              href={youtubeWatchUrl(first.id)}
+              class="group absolute inset-0 grid place-items-center"
+              data-stage-facade
+              data-video-id={first.id}
+              aria-label={t.playVideo.replace('{title}', first.title)}
+            >
+              <img
+                src={youtubeThumbnailUrl(first.id, 'hqdefault')}
+                alt=""
+                width="480"
+                height="360"
+                decoding="async"
+                class="absolute inset-0 size-full object-cover opacity-80 transition-opacity group-hover:opacity-100"
+                data-stage-thumbnail
+              />
+              <span
+                class="bg-base/80 border-accent/70 text-accent group-hover:bg-base relative grid size-16 place-items-center rounded-full border-2 transition-colors sm:size-20"
+                aria-hidden="true"
+              >
+                <svg viewBox="0 0 24 24" class="ml-1 size-7 fill-current sm:size-9">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </span>
+            </a>
+          </div>
+          <div class="grid gap-1">
+            <h2 class="text-lg font-semibold sm:text-xl" data-stage-title>
+              {first.title}
+            </h2>
+            <p class="text-muted flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+              <a
+                href={youtubeChannelUrl(first.channelData.channelId)}
+                class="text-accent hover:text-fg underline-offset-4 hover:underline"
+                data-stage-channel
+              >
+                {first.channelData.name}
+              </a>
+              <a
+                href={youtubeWatchUrl(first.id)}
+                class="hover:text-fg underline-offset-4 hover:underline"
+                data-stage-watch
+              >
+                {t.openOnYouTube}
+                <span aria-hidden="true">↗</span>
+              </a>
+            </p>
+          </div>
+        </div>
+
+        <section aria-labelledby="video-list-title" class="mb-12">
+          <div class="mb-4 flex items-baseline justify-between gap-4">
+            <h2 id="video-list-title" class="text-xl font-semibold">
+              {t.videoList}
+            </h2>
+            <p class="text-muted text-sm">{countLabel}</p>
+          </div>
+          <ul class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {shelf.map((video) => (
+              <li class="bg-surface border-muted/25 has-[[aria-current=true]]:border-accent/70 grid content-start overflow-hidden rounded-lg border transition-colors">
+                <a
+                  href={youtubeWatchUrl(video.id)}
+                  class="group grid content-start gap-3 pb-4 outline-offset-[-2px]"
+                  data-video-card
+                  data-video-id={video.id}
+                  data-title={video.title}
+                  data-channel-name={video.channelData.name}
+                  data-channel-url={youtubeChannelUrl(video.channelData.channelId)}
+                  aria-current={video.id === first.id ? 'true' : undefined}
+                >
+                  <img
+                    src={youtubeThumbnailUrl(video.id, 'mqdefault')}
+                    alt=""
+                    width="320"
+                    height="180"
+                    loading="lazy"
+                    decoding="async"
+                    class="aspect-video w-full bg-black object-cover opacity-90 transition-opacity group-hover:opacity-100"
+                  />
+                  <span class="group-hover:text-accent line-clamp-2 px-4 font-semibold transition-colors">
+                    {video.title}
+                  </span>
+                </a>
+                {/* 公開元を明示する。チャンネル名はYouTubeのチャンネルページへのリンク。 */}
+                <p class="text-muted -mt-2 flex flex-wrap justify-between gap-x-3 px-4 pb-4 text-sm">
+                  <a
+                    href={youtubeChannelUrl(video.channelData.channelId)}
+                    class="hover:text-fg underline-offset-4 hover:underline"
+                  >
+                    {video.channelData.name}
+                  </a>
+                  <time datetime={video.publishedAt.toISOString().slice(0, 10)}>
+                    <span class="sr-only">{t.publishedOn}: </span>
+                    {dateFormat.format(video.publishedAt)}
+                  </time>
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </>
+    ) : (
+      <p class="bg-surface border-muted/25 text-muted mb-12 rounded-lg border p-6">{t.noVideos}</p>
+    )}
+
+    {activeChannels.length > 0 && (
+      <section aria-labelledby="channel-list-title" class="mb-12">
+        <h2 id="channel-list-title" class="mb-4 text-xl font-semibold">
+          {t.registeredChannels}
+        </h2>
+        <ul class="flex flex-wrap gap-2">
+          {activeChannels.map((channel) => (
+            <li>
+              <a
+                href={youtubeChannelUrl(channel.channelId)}
+                class="bg-surface border-muted/25 hover:border-accent/60 inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm transition-colors"
+              >
+                {channel.name}
+                {channel.category && (
+                  <span class="text-warm font-mono text-xs">{channel.category}</span>
+                )}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    )}
+
+    <footer class="border-muted/20 text-muted grid gap-2 border-t pt-6 text-xs">
+      <p>{t.playerNotice}</p>
+      <p class="flex flex-wrap gap-x-4 gap-y-1">
+        <a
+          href="https://www.youtube.com/t/terms"
+          class="hover:text-fg underline underline-offset-4"
+          rel="noopener noreferrer"
+        >
+          {t.youtubeTerms}
+        </a>
+        <a
+          href="https://policies.google.com/privacy"
+          class="hover:text-fg underline underline-offset-4"
+          rel="noopener noreferrer"
+        >
+          {t.googlePrivacy}
+        </a>
+      </p>
+    </footer>
+  </section>
+</BaseLayout>
+
+<script>
+  import { VIDEO_ID_PATTERN } from '../lib/videoShelf';
+
+  const stage = document.querySelector<HTMLElement>('[data-video-stage]');
+  const cards = Array.from(document.querySelectorAll<HTMLAnchorElement>('[data-video-card]'));
+
+  if (stage) {
+    const embedBase = stage.dataset.embedBase ?? '';
+    const frame = stage.querySelector<HTMLElement>('.aspect-video');
+    const title = stage.querySelector<HTMLElement>('[data-stage-title]');
+    const channel = stage.querySelector<HTMLAnchorElement>('[data-stage-channel]');
+    const watch = stage.querySelector<HTMLAnchorElement>('[data-stage-watch]');
+    const facade = stage.querySelector<HTMLAnchorElement>('[data-stage-facade]');
+
+    // 再生ボタンが押されたときに初めて公式プレイヤーを読み込む（自動再生はユーザー操作の直後のみ）。
+    const play = (card: HTMLAnchorElement) => {
+      const videoId = card.dataset.videoId ?? '';
+      if (!frame || !VIDEO_ID_PATTERN.test(videoId)) return false;
+
+      const iframe = document.createElement('iframe');
+      iframe.src = `${embedBase}${videoId}?autoplay=1`;
+      iframe.title = card.dataset.title ?? 'YouTube video player';
+      iframe.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+      iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+      iframe.className = 'absolute inset-0 size-full';
+      frame.replaceChildren(iframe);
+
+      if (title && card.dataset.title) title.textContent = card.dataset.title;
+      if (channel && card.dataset.channelName && card.dataset.channelUrl) {
+        channel.textContent = card.dataset.channelName;
+        channel.href = card.dataset.channelUrl;
+      }
+      if (watch) watch.href = card.href;
+      for (const other of cards) {
+        if (other === card) other.setAttribute('aria-current', 'true');
+        else other.removeAttribute('aria-current');
+      }
+
+      // プレイヤーが画面外にある場合（スマートフォンで一覧を下へ進んだときなど）は表示位置まで戻す。
+      const rect = frame.getBoundingClientRect();
+      if (rect.top < 0 || rect.bottom > window.innerHeight) {
+        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        frame.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
+      }
+      iframe.focus({ preventScroll: true });
+      return true;
+    };
+
+    const handleClick = (event: MouseEvent, card: HTMLAnchorElement) => {
+      // 修飾キー付きのクリックは通常のリンクとしてYouTubeで開く。
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+        return;
+      }
+      if (play(card)) event.preventDefault();
+    };
+
+    for (const card of cards) {
+      card.addEventListener('click', (event) => handleClick(event, card));
+    }
+    facade?.addEventListener('click', (event) => {
+      const current = cards.find((card) => card.getAttribute('aria-current') === 'true');
+      if (current) handleClick(event, current);
+    });
+  }
+</script>

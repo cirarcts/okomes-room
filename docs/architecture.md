@@ -96,6 +96,8 @@ GitHub Pages のプロジェクトページは `/<リポジトリ名>/` 配下�
 | 展示室   | `/exhibits/`   |
 | アトリエ | `/atelier/`    |
 
+動画の棚は `/exhibits/video-shelf/`。
+
 表のパスは日本語版。英語版は `/en/` 配下に同じ構造で静的生成する。例えばRig詳細は `/exhibits/kemper/<slug>/` と `/en/exhibits/kemper/<slug>/` で、両言語で同じslugと設定データを使う。末尾スラッシュ付きで統一する。
 
 表示言語はURLから決める。言語切り替えは対応ページへのリンクで行い、ブラウザへの設定保存は使わない。ページ本体は `src/views/`、共通文言は [src/lib/messages.ts](../src/lib/messages.ts) で管理する。

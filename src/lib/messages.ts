@@ -31,6 +31,19 @@ const ja = {
   openAll: 'すべて開く',
   closeAll: 'すべて閉じる',
   knobView: 'ノブ表示',
+  videoShelfTitle: '動画の棚',
+  videoShelfDescription: '自分で選んだチャンネルの動画を並べて、そのまま視聴できる棚。',
+  playVideo: '{title} を再生',
+  videoCount: '{count}本の動画',
+  noVideos: 'まだ動画が登録されていません。',
+  videoList: '動画一覧',
+  registeredChannels: '登録チャンネル',
+  openOnYouTube: 'YouTubeで開く',
+  publishedOn: '公開日',
+  playerNotice:
+    '動画はYouTubeの公式埋め込みプレイヤー（プライバシー強化モード）で再生します。プレイヤーは再生ボタンを押したときに読み込みます。サムネイル画像はYouTubeから読み込みます。',
+  youtubeTerms: 'YouTube利用規約',
+  googlePrivacy: 'Googleプライバシーポリシー',
 };
 
 export const messages: Record<Locale, typeof ja> = {
@@ -66,5 +79,18 @@ export const messages: Record<Locale, typeof ja> = {
     openAll: 'Expand all',
     closeAll: 'Collapse all',
     knobView: 'Knob view',
+    videoShelfTitle: 'Video Shelf',
+    videoShelfDescription: 'A shelf of videos from channels I picked myself, ready to watch.',
+    playVideo: 'Play {title}',
+    videoCount: '{count} videos',
+    noVideos: 'No videos yet.',
+    videoList: 'Videos',
+    registeredChannels: 'Channels',
+    openOnYouTube: 'Open on YouTube',
+    publishedOn: 'Published',
+    playerNotice:
+      'Videos play in the official YouTube embedded player (privacy-enhanced mode). The player loads only when you press play. Thumbnails are loaded from YouTube.',
+    youtubeTerms: 'YouTube Terms of Service',
+    googlePrivacy: 'Google Privacy Policy',
   },
 };
