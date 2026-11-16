@@ -1,9 +1,12 @@
 name: Deploy to GitHub Pages
 
-# 公開準備が整うまでは手動実行のみ。
-# 自動公開を始めるときは下の push トリガーを有効化する（docs/deployment.md 参照）。
+# 手動実行と、動画の棚の新着を反映する毎日の定期実行で公開する。
+# main へのpushごとの自動公開を始めるときは下の push トリガーを有効化する（docs/deployment.md 参照）。
 on:
   workflow_dispatch:
+  schedule:
+    # 毎日 6:17（日本時間）。GitHub Actionsの混雑しやすい毎時0分を避ける。
+    - cron: '17 21 * * *'
   # push:
   #   branches: [main]
 
@@ -35,7 +38,10 @@ jobs:
         uses: actions/configure-pages@v6
 
       # 公開URLとサブパスはGitHub Pagesの設定から取得する（独自ドメイン設定時も自動で追従する）
+      # YOUTUBE_API_KEY はビルド時の新着取得にのみ使う。未設定でもビルドは成功する（docs/video-shelf.md）。
       - run: npm run build -- --site "${{ steps.pages.outputs.origin }}" --base "${{ steps.pages.outputs.base_path }}"
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
 
       - uses: actions/upload-pages-artifact@v5
         with:

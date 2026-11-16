@@ -1,6 +1,7 @@
 ---
 import { getCollection } from 'astro:content';
 
+import VideoCard from '../components/video-shelf/VideoCard.astro';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getPageLocale, localizedPath } from '../lib/locale';
 import { messages } from '../lib/messages';
@@ -16,20 +17,50 @@ const { locale } = getPageLocale(Astro.url.pathname);
 const t = messages[locale];
 
 const channels = (await getCollection('videoChannels')).map(({ data }) => data);
-const shelf = buildShelf(
-  channels,
-  (await getCollection('shelfVideos')).map(({ data }) => data),
-);
 const activeChannels = channels
   .filter((channel) => channel.enabled)
   .sort((a, b) => a.name.localeCompare(b.name, 'ja'));
-const first = shelf[0];
 
-const dateFormat = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'Asia/Tokyo' });
-const countLabel =
-  locale === 'en' && shelf.length === 1
-    ? '1 video'
-    : t.videoCount.replace('{count}', String(shelf.length));
+// おすすめ棚：手動で選んだ動画。チャンネルをまたいで並べる（API Dataではない）。
+const picks = buildShelf(
+  channels,
+  (await getCollection('shelfVideos')).map(({ data }) => data),
+);
+
+// チャンネルの新着：ビルド時に自動取得したデータ。規約に合わせてチャンネルごとに分けて表示する。
+const uploadsById = new Map(
+  (await getCollection('channelUploads')).map(({ data }) => [data.channel, data]),
+);
+const channelShelves = activeChannels.flatMap((channel) => {
+  const uploads = uploadsById.get(channel.id);
+  return uploads ? [{ channel, uploads }] : [];
+});
+
+// 再生ステージの初期表示は、おすすめ棚の先頭（なければ最初のチャンネルの新着）。
+const firstUpload = channelShelves.find(({ uploads }) => uploads.videos.length > 0);
+const stage = picks[0]
+  ? {
+      id: picks[0].id,
+      title: picks[0].title,
+      channelName: picks[0].channelData.name,
+      channelUrl: youtubeChannelUrl(picks[0].channelData.channelId),
+    }
+  : firstUpload
+    ? {
+        id: firstUpload.uploads.videos[0].id,
+        title: firstUpload.uploads.videos[0].title,
+        channelName: firstUpload.channel.name,
+        channelUrl: youtubeChannelUrl(firstUpload.channel.channelId),
+      }
+    : undefined;
+
+const fetchedAtFormat = new Intl.DateTimeFormat(locale, {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+  timeZone: 'Asia/Tokyo',
+});
+const countLabel = (count: number) =>
+  locale === 'en' && count === 1 ? '1 video' : t.videoCount.replace('{count}', String(count));
 ---
 
 <BaseLayout title={t.videoShelfTitle} description={t.videoShelfDescription}>
@@ -53,118 +84,145 @@ const countLabel =
       <p class="text-muted">{t.videoShelfDescription}</p>
     </header>
 
-    {first ? (
-      <>
-        {/* 再生ステージ。JavaScriptが無効な場合は、サムネイルからYouTubeの視聴ページへ移動する。 */}
+    {stage ? (
+      // 再生ステージ。JavaScriptが無効な場合は、サムネイルからYouTubeの視聴ページへ移動する。
+      <div
+        class="mx-auto mb-10 grid w-full max-w-4xl gap-3"
+        data-video-stage
+        data-embed-base={EMBED_BASE_URL}
+      >
         <div
-          class="mx-auto mb-10 grid w-full max-w-4xl gap-3"
-          data-video-stage
-          data-embed-base={EMBED_BASE_URL}
+          class="border-accent/30 relative aspect-video w-full overflow-hidden rounded-lg border bg-black shadow-[0_0_40px_-12px] shadow-cyan-400/30"
+          data-stage-frame
         >
-          <div class="border-accent/30 relative aspect-video w-full overflow-hidden rounded-lg border bg-black shadow-[0_0_40px_-12px] shadow-cyan-400/30">
-            <a
-              href={youtubeWatchUrl(first.id)}
-              class="group absolute inset-0 grid place-items-center"
-              data-stage-facade
-              data-video-id={first.id}
-              aria-label={t.playVideo.replace('{title}', first.title)}
+          <a
+            href={youtubeWatchUrl(stage.id)}
+            class="group absolute inset-0 grid place-items-center"
+            data-stage-facade
+            aria-label={t.playVideo.replace('{title}', stage.title)}
+          >
+            <img
+              src={youtubeThumbnailUrl(stage.id, 'hqdefault')}
+              alt=""
+              width="480"
+              height="360"
+              decoding="async"
+              class="absolute inset-0 size-full object-cover opacity-80 transition-opacity group-hover:opacity-100"
+            />
+            <span
+              class="bg-base/80 border-accent/70 text-accent group-hover:bg-base relative grid size-16 place-items-center rounded-full border-2 transition-colors sm:size-20"
+              aria-hidden="true"
             >
-              <img
-                src={youtubeThumbnailUrl(first.id, 'hqdefault')}
-                alt=""
-                width="480"
-                height="360"
-                decoding="async"
-                class="absolute inset-0 size-full object-cover opacity-80 transition-opacity group-hover:opacity-100"
-                data-stage-thumbnail
-              />
-              <span
-                class="bg-base/80 border-accent/70 text-accent group-hover:bg-base relative grid size-16 place-items-center rounded-full border-2 transition-colors sm:size-20"
-                aria-hidden="true"
-              >
-                <svg viewBox="0 0 24 24" class="ml-1 size-7 fill-current sm:size-9">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-              </span>
-            </a>
-          </div>
-          <div class="grid gap-1">
-            <h2 class="text-lg font-semibold sm:text-xl" data-stage-title>
-              {first.title}
-            </h2>
-            <p class="text-muted flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-              <a
-                href={youtubeChannelUrl(first.channelData.channelId)}
-                class="text-accent hover:text-fg underline-offset-4 hover:underline"
-                data-stage-channel
-              >
-                {first.channelData.name}
-              </a>
-              <a
-                href={youtubeWatchUrl(first.id)}
-                class="hover:text-fg underline-offset-4 hover:underline"
-                data-stage-watch
-              >
-                {t.openOnYouTube}
-                <span aria-hidden="true">↗</span>
-              </a>
-            </p>
-          </div>
+              <svg viewBox="0 0 24 24" class="ml-1 size-7 fill-current sm:size-9">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            </span>
+          </a>
         </div>
-
-        <section aria-labelledby="video-list-title" class="mb-12">
-          <div class="mb-4 flex items-baseline justify-between gap-4">
-            <h2 id="video-list-title" class="text-xl font-semibold">
-              {t.videoList}
-            </h2>
-            <p class="text-muted text-sm">{countLabel}</p>
-          </div>
-          <ul class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {shelf.map((video) => (
-              <li class="bg-surface border-muted/25 has-[[aria-current=true]]:border-accent/70 grid content-start overflow-hidden rounded-lg border transition-colors">
-                <a
-                  href={youtubeWatchUrl(video.id)}
-                  class="group grid content-start gap-3 pb-4 outline-offset-[-2px]"
-                  data-video-card
-                  data-video-id={video.id}
-                  data-title={video.title}
-                  data-channel-name={video.channelData.name}
-                  data-channel-url={youtubeChannelUrl(video.channelData.channelId)}
-                  aria-current={video.id === first.id ? 'true' : undefined}
-                >
-                  <img
-                    src={youtubeThumbnailUrl(video.id, 'mqdefault')}
-                    alt=""
-                    width="320"
-                    height="180"
-                    loading="lazy"
-                    decoding="async"
-                    class="aspect-video w-full bg-black object-cover opacity-90 transition-opacity group-hover:opacity-100"
-                  />
-                  <span class="group-hover:text-accent line-clamp-2 px-4 font-semibold transition-colors">
-                    {video.title}
-                  </span>
-                </a>
-                {/* 公開元を明示する。チャンネル名はYouTubeのチャンネルページへのリンク。 */}
-                <p class="text-muted -mt-2 flex flex-wrap justify-between gap-x-3 px-4 pb-4 text-sm">
-                  <a
-                    href={youtubeChannelUrl(video.channelData.channelId)}
-                    class="hover:text-fg underline-offset-4 hover:underline"
-                  >
-                    {video.channelData.name}
-                  </a>
-                  <time datetime={video.publishedAt.toISOString().slice(0, 10)}>
-                    <span class="sr-only">{t.publishedOn}: </span>
-                    {dateFormat.format(video.publishedAt)}
-                  </time>
-                </p>
-              </li>
-            ))}
-          </ul>
-        </section>
-      </>
+        <div class="grid gap-1">
+          <h2 class="text-lg font-semibold sm:text-xl" data-stage-title>
+            {stage.title}
+          </h2>
+          <p class="text-muted flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+            <a
+              href={stage.channelUrl}
+              class="text-accent hover:text-fg underline-offset-4 hover:underline"
+              data-stage-channel
+            >
+              {stage.channelName}
+            </a>
+            <a
+              href={youtubeWatchUrl(stage.id)}
+              class="hover:text-fg underline-offset-4 hover:underline"
+              data-stage-watch
+            >
+              {t.openOnYouTube}
+              <span aria-hidden="true">↗</span>
+            </a>
+          </p>
+        </div>
+      </div>
     ) : (
       <p class="bg-surface border-muted/25 text-muted mb-12 rounded-lg border p-6">{t.noVideos}</p>
+    )}
+
+    {picks.length > 0 && (
+      <section aria-labelledby="picks-title" class="mb-12">
+        <div class="mb-4 flex items-baseline justify-between gap-4">
+          <h2 id="picks-title" class="text-xl font-semibold">
+            {t.picks}
+          </h2>
+          <p class="text-muted text-sm">{countLabel(picks.length)}</p>
+        </div>
+        <ul class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {picks.map((video) => (
+            <VideoCard
+              locale={locale}
+              videoId={video.id}
+              title={video.title}
+              publishedAt={video.publishedAt}
+              thumbnailUrl={youtubeThumbnailUrl(video.id, 'mqdefault')}
+              channelName={video.channelData.name}
+              channelUrl={youtubeChannelUrl(video.channelData.channelId)}
+              current={video.id === stage?.id}
+            />
+          ))}
+        </ul>
+      </section>
+    )}
+
+    {channelShelves.length > 0 && (
+      <section aria-labelledby="channel-latest-title" class="mb-12 grid gap-8">
+        <h2 id="channel-latest-title" class="text-xl font-semibold">
+          {t.channelLatest}
+        </h2>
+        {channelShelves.map(({ channel, uploads }) => (
+          <section
+            aria-labelledby={`channel-${channel.id}-title`}
+            class="border-muted/20 grid gap-4 border-l-2 pl-4"
+          >
+            <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+              <h3
+                id={`channel-${channel.id}-title`}
+                class="flex items-baseline gap-2 font-semibold"
+              >
+                <a
+                  href={youtubeChannelUrl(channel.channelId)}
+                  class="hover:text-accent underline-offset-4 hover:underline"
+                >
+                  {channel.name}
+                </a>
+                {channel.category && (
+                  <span class="text-warm font-mono text-xs">{channel.category}</span>
+                )}
+              </h3>
+              <p class="text-muted text-xs">
+                {t.fetchedAt.replace('{date}', fetchedAtFormat.format(uploads.fetchedAt))}
+              </p>
+            </div>
+            {uploads.status === 'error' ? (
+              <p class="text-muted text-sm">{t.fetchFailed}</p>
+            ) : uploads.videos.length === 0 ? (
+              <p class="text-muted text-sm">{t.noUploads}</p>
+            ) : (
+              <ul class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {uploads.videos.map((video) => (
+                  <VideoCard
+                    locale={locale}
+                    videoId={video.id}
+                    title={video.title}
+                    publishedAt={video.publishedAt}
+                    thumbnailUrl={video.thumbnailUrl ?? youtubeThumbnailUrl(video.id, 'mqdefault')}
+                    channelName={channel.name}
+                    channelUrl={youtubeChannelUrl(channel.channelId)}
+                    current={video.id === stage?.id}
+                  />
+                ))}
+              </ul>
+            )}
+          </section>
+        ))}
+      </section>
     )}
 
     {activeChannels.length > 0 && (
@@ -192,6 +250,7 @@ const countLabel =
 
     <footer class="border-muted/20 text-muted grid gap-2 border-t pt-6 text-xs">
       <p>{t.playerNotice}</p>
+      {channelShelves.length > 0 && <p>{t.apiNotice}</p>}
       <p class="flex flex-wrap gap-x-4 gap-y-1">
         <a
           href="https://www.youtube.com/t/terms"
@@ -220,7 +279,7 @@ const countLabel =
 
   if (stage) {
     const embedBase = stage.dataset.embedBase ?? '';
-    const frame = stage.querySelector<HTMLElement>('.aspect-video');
+    const frame = stage.querySelector<HTMLElement>('[data-stage-frame]');
     const title = stage.querySelector<HTMLElement>('[data-stage-title]');
     const channel = stage.querySelector<HTMLAnchorElement>('[data-stage-channel]');
     const watch = stage.querySelector<HTMLAnchorElement>('[data-stage-watch]');
@@ -245,8 +304,9 @@ const countLabel =
         channel.href = card.dataset.channelUrl;
       }
       if (watch) watch.href = card.href;
+      // 同じ動画がおすすめ棚とチャンネルの新着の両方にある場合は、両方を選択中にする。
       for (const other of cards) {
-        if (other === card) other.setAttribute('aria-current', 'true');
+        if (other.dataset.videoId === videoId) other.setAttribute('aria-current', 'true');
         else other.removeAttribute('aria-current');
       }
 

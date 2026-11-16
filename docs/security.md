@@ -20,7 +20,9 @@
 ## ビルド成果物
 
 - `public/` と `src/` 配下のファイルは、参照のされ方によって `dist/` に出力される。公開前に `dist/` の中身を確認する。
-- クライアントに渡す環境変数（`PUBLIC_` 接頭辞）に秘密情報を入れない。現時点で環境変数は使用していない。
+- クライアントに渡す環境変数（`PUBLIC_` 接頭辞）に秘密情報を入れない。
+- 使用している秘密の環境変数は `YOUTUBE_API_KEY` のみ。ビルド時のコンテンツローダーでだけ参照し、GitHub Secretsで管理する。APIキーはYouTube Data API v3のみに制限する（[deployment.md](deployment.md#github-secrets)）。ビルド後に `dist/` にキーが含まれていないことを確認する。
+- YouTube API Dataは30日を超えて保存できないため、取得結果をリポジトリにコミットしない（[video-shelf.md](video-shelf.md)）。
 
 ## コンテンツの安全性
 
