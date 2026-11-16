@@ -133,6 +133,9 @@ export function initVideoShelfPlayer(): void {
   const showCurrent = (card: HTMLAnchorElement | undefined) => {
     if (!card) return;
     if (titleEl && card.dataset.title) titleEl.textContent = card.dataset.title;
+    // プレイヤーを使い回すときも、iframeの名前（スクリーンリーダーが読み上げる）を今の動画に合わせる。
+    const iframe = frame.querySelector('iframe');
+    if (iframe && card.dataset.title) iframe.title = card.dataset.title;
     if (channelEl && card.dataset.channelName && card.dataset.channelUrl) {
       channelEl.textContent = card.dataset.channelName;
       channelEl.href = card.dataset.channelUrl;

@@ -111,19 +111,35 @@ export function createPlayerFrame(options: {
   return iframe;
 }
 
-/** 作成済みのiframeをAPIで制御できるようにする。 */
+/** `onReady` を待つ上限。これを過ぎたら、APIは使えないものとして扱う。 */
+const READY_TIMEOUT_MS = 15_000;
+
+/**
+ * 作成済みのiframeをAPIで制御できるようにする。
+ * プレイヤーがAPIの呼び出しを受け付けるのは `onReady` 以降のため、それまで解決しない。
+ */
 export async function attachPlayer(
   iframe: HTMLIFrameElement,
   handlers: PlayerHandlers,
 ): Promise<YouTubePlayer> {
   const YT = await loadIframeApi();
-  return new YT.Player(iframe, {
-    events: {
-      onReady: handlers.onReady,
-      onStateChange: (event) => handlers.onStateChange?.(event.data),
-      onError: (event) => handlers.onError?.(event.data),
-      onAutoplayBlocked: handlers.onAutoplayBlocked,
-    },
+  return new Promise<YouTubePlayer>((resolve, reject) => {
+    const timer = window.setTimeout(
+      () => reject(new Error('YouTubeプレイヤーの準備が完了しませんでした。')),
+      READY_TIMEOUT_MS,
+    );
+    const player = new YT.Player(iframe, {
+      events: {
+        onReady: () => {
+          window.clearTimeout(timer);
+          handlers.onReady?.();
+          resolve(player);
+        },
+        onStateChange: (event) => handlers.onStateChange?.(event.data),
+        onError: (event) => handlers.onError?.(event.data),
+        onAutoplayBlocked: handlers.onAutoplayBlocked,
+      },
+    });
   });
 }
 
