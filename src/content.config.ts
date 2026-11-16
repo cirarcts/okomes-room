@@ -149,6 +149,15 @@ function youtubeUploadsLoader(): Loader {
   };
 }
 
+const uploadVideo = z.object({
+  id: z.string().regex(VIDEO_ID_PATTERN),
+  title: z.string().min(1),
+  publishedAt: z.coerce.date(),
+  thumbnailUrl: z.url().optional(),
+  kind: z.enum(VIDEO_KINDS),
+  durationSeconds: z.number().int().nonnegative().optional(),
+});
+
 // 動画の棚：チャンネルごとの新着（自動取得）。`id` はチャンネルのslug。
 const channelUploads = defineCollection({
   loader: youtubeUploadsLoader(),
@@ -156,16 +165,9 @@ const channelUploads = defineCollection({
     channel: z.string().regex(SLUG_PATTERN),
     status: z.enum(['ok', 'error']),
     fetchedAt: z.coerce.date(),
-    videos: z.array(
-      z.object({
-        id: z.string().regex(VIDEO_ID_PATTERN),
-        title: z.string().min(1),
-        publishedAt: z.coerce.date(),
-        thumbnailUrl: z.url().optional(),
-        kind: z.enum(VIDEO_KINDS),
-        durationSeconds: z.number().int().nonnegative().optional(),
-      }),
-    ),
+    videos: z.array(uploadVideo),
+    // 管理人のチャンネルのみ：視聴回数の多い順の代表作。
+    popular: z.array(uploadVideo.extend({ viewCount: z.number().int().nonnegative() })).optional(),
   }),
 });
 

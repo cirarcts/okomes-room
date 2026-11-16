@@ -10,6 +10,7 @@ import {
   sortChannels,
   validateShelfConfig,
   formatDuration,
+  formatViewCount,
   matchesVideoFilter,
   normalizeSearchText,
   parseIsoDuration,
@@ -269,5 +270,14 @@ describe('formatDuration', () => {
     [36000, '10:00:00'],
   ])('%d 秒は %s', (seconds, text) => {
     expect(formatDuration(seconds)).toBe(text);
+  });
+});
+
+describe('formatViewCount', () => {
+  it('言語に合わせて短く表す', () => {
+    expect(formatViewCount(999, 'ja')).toBe('999');
+    expect(formatViewCount(12_345, 'ja')).toBe('1.2万');
+    expect(formatViewCount(12_345, 'en')).toBe('12.3K');
+    expect(formatViewCount(1_500_000, 'en')).toBe('1.5M');
   });
 });

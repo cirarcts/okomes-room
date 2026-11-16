@@ -1,7 +1,12 @@
 ---
 import type { Locale } from '../../lib/locale';
 import { messages } from '../../lib/messages';
-import { formatDuration, youtubeWatchUrl, type VideoKind } from '../../lib/videoShelf';
+import {
+  formatDuration,
+  formatViewCount,
+  youtubeWatchUrl,
+  type VideoKind,
+} from '../../lib/videoShelf';
 
 interface Props {
   locale: Locale;
@@ -14,6 +19,8 @@ interface Props {
   /** 種別。手動で登録した動画などで未取得の場合は省略する。 */
   kind?: VideoKind;
   durationSeconds?: number;
+  /** 視聴回数（管理人の代表作のみ） */
+  viewCount?: number;
   /** 公開元チャンネルのカテゴリの id（絞り込みに使う） */
   categories: readonly string[];
   /**
@@ -35,6 +42,7 @@ const {
   channelUrl,
   kind,
   durationSeconds,
+  viewCount,
   categories,
   variant = 'grid',
   current,
@@ -87,7 +95,7 @@ const kindLabel = kind === 'live' ? t.kindLive : kind === 'short' ? t.kindShort 
       {title}
     </span>
   </a>
-  {(kindLabel || durationSeconds !== undefined) && (
+  {(kindLabel || durationSeconds !== undefined || viewCount !== undefined) && (
     <p class="text-muted -mt-1 flex flex-wrap items-center gap-2 px-4 pb-3 text-xs">
       {kindLabel && (
         <span class="border-warm/50 text-warm rounded-sm border px-1.5 py-0.5">{kindLabel}</span>
@@ -97,6 +105,9 @@ const kindLabel = kind === 'live' ? t.kindLive : kind === 'short' ? t.kindShort 
           <span class="sr-only">{t.duration}: </span>
           {formatDuration(durationSeconds)}
         </span>
+      )}
+      {viewCount !== undefined && (
+        <span>{t.views.replace('{count}', formatViewCount(viewCount, locale))}</span>
       )}
     </p>
   )}

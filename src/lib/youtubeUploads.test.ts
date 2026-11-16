@@ -4,6 +4,7 @@ import {
   chunk,
   fetchChannelUploads,
   isPlayable,
+  pickPopular,
   toUploadVideo,
   type ApiVideo,
   type FetchLike,
@@ -265,5 +266,117 @@ describe('fetchChannelUploads', () => {
     const { fetchFn, calls } = mockFetch({});
     expect(await fetchChannelUploads([], 'test-key', fetchFn, NOW)).toEqual([]);
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe('pickPopular', () => {
+  const withViews = (
+    id: string,
+    viewCount: string | undefined,
+    publishedAt = '2026-11-01T00:00:00Z',
+  ) => ({
+    ...apiVideo(id, { snippet: { publishedAt } }),
+    ...(viewCount === undefined ? {} : { statistics: { viewCount } }),
+  });
+
+  it('視聴回数の多い順に指定件数を選び、視聴回数を付ける', () => {
+    const popular = pickPopular(
+      [
+        withViews('aaaaaaaaaa1', '10'),
+        withViews('aaaaaaaaaa2', '300'),
+        withViews('aaaaaaaaaa3', '25'),
+      ],
+      2,
+    );
+    expect(popular.map((video) => [video.id, video.viewCount])).toEqual([
+      ['aaaaaaaaaa2', 300],
+      ['aaaaaaaaaa3', 25],
+    ]);
+  });
+
+  it('視聴回数が不明な動画は除き、同数なら新しい順', () => {
+    const popular = pickPopular(
+      [
+        withViews('aaaaaaaaaa1', '5', '2026-01-01T00:00:00Z'),
+        withViews('aaaaaaaaaa2', undefined),
+        withViews('aaaaaaaaaa3', '5', '2026-06-01T00:00:00Z'),
+      ],
+      5,
+    );
+    expect(popular.map((video) => video.id)).toEqual(['aaaaaaaaaa3', 'aaaaaaaaaa1']);
+  });
+});
+
+describe('管理人のチャンネル', () => {
+  // 15本の動画を、2ページ（10本＋5本）に分けて返す架空のAPI。
+  const ids = Array.from({ length: 15 }, (_, index) => `owner${String(index).padStart(6, '0')}`);
+  function ownerFetch() {
+    const calls: URL[] = [];
+    const fetchFn: FetchLike = async (input) => {
+      const url = new URL(input);
+      calls.push(url);
+      const endpoint = url.pathname.split('/').at(-1);
+      if (endpoint === 'channels') {
+        return Response.json({
+          items: [{ id: CHANNEL_A, contentDetails: { relatedPlaylists: { uploads: 'UUa' } } }],
+        });
+      }
+      if (endpoint === 'playlistItems') {
+        const second = url.searchParams.get('pageToken') === 'p2';
+        const page = second ? ids.slice(10) : ids.slice(0, 10);
+        return Response.json({
+          items: page.map((videoId) => ({ contentDetails: { videoId } })),
+          ...(second ? {} : { nextPageToken: 'p2' }),
+        });
+      }
+      const requested = url.searchParams.get('id')?.split(',') ?? [];
+      return Response.json({
+        items: requested.map((id) => ({
+          ...apiVideo(id, {
+            snippet: {
+              publishedAt: `2026-01-${String(ids.indexOf(id) + 1).padStart(2, '0')}T00:00:00Z`,
+            },
+          }),
+          // 古い動画ほど視聴回数が多い
+          statistics: { viewCount: String((15 - ids.indexOf(id)) * 100) },
+        })),
+      });
+    };
+    return { fetchFn, calls };
+  }
+
+  it('全ページを取得し、新着12本と視聴回数の上位5本を返す', async () => {
+    const { fetchFn, calls } = ownerFetch();
+    const [owner] = await fetchChannelUploads(
+      [{ id: 'me', channelId: CHANNEL_A, owner: true }],
+      'test-key',
+      fetchFn,
+      NOW,
+    );
+    expect(calls.filter((url) => url.pathname.endsWith('/playlistItems'))).toHaveLength(2);
+    expect(owner.videos).toHaveLength(12);
+    expect(owner.videos[0].id).toBe(ids[14]);
+    expect(owner.videos.every((video) => video.viewCount === undefined)).toBe(true);
+    expect(owner.popular?.map((video) => [video.id, video.viewCount])).toEqual([
+      [ids[0], 1500],
+      [ids[1], 1400],
+      [ids[2], 1300],
+      [ids[3], 1200],
+      [ids[4], 1100],
+    ]);
+  });
+
+  it('推しチャンネルは1ページだけ取得し、代表作を返さない', async () => {
+    const { fetchFn, calls } = ownerFetch();
+    const [fan] = await fetchChannelUploads(
+      [{ id: 'fan', channelId: CHANNEL_A }],
+      'test-key',
+      fetchFn,
+      NOW,
+    );
+    const playlistCalls = calls.filter((url) => url.pathname.endsWith('/playlistItems'));
+    expect(playlistCalls).toHaveLength(1);
+    expect(playlistCalls[0].searchParams.get('maxResults')).toBe('12');
+    expect(fan).not.toHaveProperty('popular');
   });
 });

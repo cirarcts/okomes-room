@@ -214,3 +214,10 @@ export function formatDuration(totalSeconds: number): string {
   const ss = String(seconds).padStart(2, '0');
   return hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}:${ss}` : `${minutes}:${ss}`;
 }
+
+/** 視聴回数を短く表す（例：ja「1.2万」、en「1.2K」）。 */
+export function formatViewCount(count: number, locale: string): string {
+  return new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(
+    count,
+  );
+}

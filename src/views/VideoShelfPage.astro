@@ -38,14 +38,18 @@ const usedCategories = categories.filter((category) =>
   activeChannels.some((channel) => channel.categories.includes(category.id)),
 );
 
-// 手動で選んだ動画。推しチャンネルの動画は「おすすめ」、管理人の動画は管理人コーナーの「代表作」に置く。
-// おすすめはチャンネルをまたいで並べる（API Dataではないため）。
-const picks = buildShelf(
+// 手動で選んだ推しの動画（おすすめ）。チャンネルをまたいで並べる（API Dataではないため）。
+// 管理人の代表作は視聴回数から自動で選ぶため、管理人チャンネルの動画は登録しない。
+const fanPicks = buildShelf(
   channels,
   (await getCollection('shelfVideos')).map(({ data }) => data),
 );
-const fanPicks = picks.filter((video) => !video.channelData.owner);
-const ownerPicks = picks.filter((video) => video.channelData.owner);
+const misplacedPicks = fanPicks.filter((video) => video.channelData.owner);
+if (misplacedPicks.length > 0) {
+  throw new Error(
+    `管理人チャンネルの動画は videos.json に登録しません（代表作は自動で選びます）: ${misplacedPicks.map((video) => video.id).join(', ')}`,
+  );
+}
 
 // チャンネルの新着：ビルド時に自動取得したデータ。規約に合わせてチャンネルごとに分けて表示する。
 const uploadsById = new Map(
@@ -56,6 +60,7 @@ const fanShelves = fanChannels.flatMap((channel) => {
   return uploads ? [{ channel, uploads }] : [];
 });
 const ownerUploads = ownerChannel ? uploadsById.get(ownerChannel.id) : undefined;
+const ownerPopular = ownerUploads?.popular ?? [];
 
 type Uploads = NonNullable<typeof ownerUploads>;
 
@@ -73,7 +78,10 @@ function pickCard(video: ShelfItem) {
   };
 }
 
-function uploadCard(channel: ShelfChannel, video: Uploads['videos'][number]) {
+function uploadCard(
+  channel: ShelfChannel,
+  video: Uploads['videos'][number] | NonNullable<Uploads['popular']>[number],
+) {
   return {
     locale,
     videoId: video.id,
@@ -84,6 +92,7 @@ function uploadCard(channel: ShelfChannel, video: Uploads['videos'][number]) {
     channelUrl: youtubeChannelUrl(channel.channelId),
     kind: video.kind,
     durationSeconds: video.durationSeconds,
+    viewCount: 'viewCount' in video ? video.viewCount : undefined,
     categories: channel.categories,
   };
 }
@@ -94,9 +103,8 @@ const stageCandidates = [
   ...fanShelves.flatMap(({ channel, uploads }) =>
     uploads.videos.slice(0, 1).map((video) => uploadCard(channel, video)),
   ),
-  ...ownerPicks.map(pickCard),
   ...(ownerChannel && ownerUploads
-    ? ownerUploads.videos.map((video) => uploadCard(ownerChannel, video))
+    ? [...ownerPopular, ...ownerUploads.videos].map((video) => uploadCard(ownerChannel, video))
     : []),
 ];
 const stage = stageCandidates[0];
@@ -342,7 +350,7 @@ const hasApiData = fanShelves.length > 0 || ownerUploads !== undefined;
       </section>
     )}
 
-    {ownerChannel && (ownerPicks.length > 0 || ownerUploads) && (
+    {ownerChannel && ownerUploads && (
       // 管理人のチャンネルは「おまけ」として、推しチャンネルの後ろに控えめに置く。
       <section
         aria-labelledby="owner-corner-title"
@@ -364,15 +372,18 @@ const hasApiData = fanShelves.length > 0 || ownerUploads !== undefined;
             </a>
           </p>
         </header>
-        {ownerPicks.length > 0 && (
+        {ownerPopular.length > 0 && (
           <section aria-labelledby="owner-works-title" class="grid min-w-0 gap-3" data-filter-group>
-            <h3 id="owner-works-title" class="text-sm font-semibold">
-              {t.ownerWorks}
-            </h3>
+            <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+              <h3 id="owner-works-title" class="text-sm font-semibold">
+                {t.ownerWorks}
+              </h3>
+              <p class="text-muted text-xs">{t.ownerWorksNote}</p>
+            </div>
             <ShelfRow
               label={t.ownerWorks}
               variant="compact"
-              items={ownerPicks.map((video) => withCurrent(pickCard(video)))}
+              items={ownerPopular.map((video) => withCurrent(uploadCard(ownerChannel, video)))}
             />
           </section>
         )}
