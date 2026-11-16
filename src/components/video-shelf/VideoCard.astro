@@ -56,7 +56,7 @@ const kindLabel = kind === 'live' ? t.kindLive : kind === 'short' ? t.kindShort 
 <li
   class:list={[
     // sr-only の要素が横スクロールの棚の外へはみ出さないよう、カードを配置の基準にする。
-    'bg-surface border-muted/25 has-[[aria-current=true]]:border-accent/70 relative grid content-start overflow-hidden rounded-lg border transition-colors',
+    'group/card bg-surface border-muted/25 has-[[aria-current=true]]:border-accent/70 relative grid data-[unplayable]:opacity-60 content-start overflow-hidden rounded-lg border transition-colors',
     variant === 'shelf' && 'w-64 shrink-0 snap-start sm:w-72',
     variant === 'compact' && 'w-48 shrink-0 snap-start sm:w-56',
   ]}
@@ -93,6 +93,10 @@ const kindLabel = kind === 'live' ? t.kindLive : kind === 'short' ? t.kindShort 
       ]}
     >
       {title}
+    </span>
+    {/* 再生できなかった動画には、スクリプトが data-unplayable を付ける。 */}
+    <span class="text-warm -mt-1 hidden px-4 text-xs group-data-[unplayable]/card:block">
+      {t.unplayable}
     </span>
   </a>
   {(kindLabel || durationSeconds !== undefined || viewCount !== undefined) && (

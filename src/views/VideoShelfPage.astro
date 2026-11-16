@@ -201,6 +201,51 @@ const hasApiData = fanShelves.length > 0 || ownerUploads !== undefined;
             </a>
           </p>
         </div>
+        {/* 再生の操作欄。プレイヤーには重ねず、下に置く（規約 RMF）。JavaScriptが無効な場合は表示しない。 */}
+        <div
+          class="border-muted/20 grid gap-3 border-t pt-3"
+          data-player-controls
+          data-msg-position={t.queuePosition}
+          data-msg-queue-end={t.queueEnd}
+          data-msg-cued={t.nextCued}
+          data-msg-autoplay-blocked={t.autoplayBlocked}
+          data-msg-not-found={t.errorNotFound}
+          data-msg-not-embeddable={t.errorNotEmbeddable}
+          data-msg-identification={t.errorIdentification}
+          data-msg-playback={t.errorPlayback}
+          hidden
+        >
+          <div class="flex flex-wrap items-center gap-3">
+            <div class="flex gap-2">
+              <button
+                type="button"
+                class="bg-surface border-muted/30 hover:border-accent/60 inline-flex min-h-11 items-center gap-1 rounded-full border px-4 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                data-player-prev
+              >
+                <span aria-hidden="true">←</span>
+                {t.previousVideo}
+              </button>
+              <button
+                type="button"
+                class="bg-surface border-muted/30 hover:border-accent/60 inline-flex min-h-11 items-center gap-1 rounded-full border px-4 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                data-player-next
+              >
+                {t.nextVideo}
+                <span aria-hidden="true">→</span>
+              </button>
+            </div>
+            <label class="inline-flex min-h-11 cursor-pointer items-center gap-2 text-sm">
+              <input type="checkbox" role="switch" class="peer sr-only" data-player-autoplay />
+              <span
+                class="bg-surface border-muted/40 peer-checked:border-accent/70 peer-checked:bg-accent/20 peer-focus-visible:outline-accent relative h-6 w-11 rounded-full border transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 after:absolute after:top-0.5 after:left-0.5 after:size-4.5 after:rounded-full after:bg-current after:transition-transform peer-checked:after:translate-x-5"
+                aria-hidden="true"
+              ></span>
+              {t.autoAdvance}
+            </label>
+          </div>
+          <p class="text-muted text-xs" aria-live="polite" data-player-position></p>
+          <p class="text-warm text-sm empty:hidden" role="status" data-player-message></p>
+        </div>
       </div>
     ) : (
       <p class="bg-surface border-muted/25 text-muted mb-12 rounded-lg border p-6">{t.noVideos}</p>
@@ -297,7 +342,11 @@ const hasApiData = fanShelves.length > 0 || ownerUploads !== undefined;
           </h2>
           <p class="text-muted text-sm">{countLabel(fanPicks.length)}</p>
         </div>
-        <ul class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <ul
+          class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+          data-queue-id="picks"
+          data-queue-label={t.picks}
+        >
           {fanPicks.map((video) => (
             <VideoCard {...withCurrent(pickCard(video))} />
           ))}
@@ -341,6 +390,7 @@ const hasApiData = fanShelves.length > 0 || ownerUploads !== undefined;
               <p class="text-muted text-sm">{t.noUploads}</p>
             ) : (
               <ShelfRow
+                queueId={`latest-${channel.id}`}
                 label={t.latestOf.replace('{channel}', channel.name)}
                 items={uploads.videos.map((video) => withCurrent(uploadCard(channel, video)))}
               />
@@ -381,6 +431,7 @@ const hasApiData = fanShelves.length > 0 || ownerUploads !== undefined;
               <p class="text-muted text-xs">{t.ownerWorksNote}</p>
             </div>
             <ShelfRow
+              queueId="owner-works"
               label={t.ownerWorks}
               variant="compact"
               items={ownerPopular.map((video) => withCurrent(uploadCard(ownerChannel, video)))}
@@ -407,6 +458,7 @@ const hasApiData = fanShelves.length > 0 || ownerUploads !== undefined;
               <p class="text-muted text-sm">{t.noUploads}</p>
             ) : (
               <ShelfRow
+                queueId="owner-latest"
                 label={t.ownerLatest}
                 variant="compact"
                 items={ownerUploads.videos.map((video) =>
@@ -470,8 +522,8 @@ const hasApiData = fanShelves.length > 0 || ownerUploads !== undefined;
 </BaseLayout>
 
 <script>
+  import { FILTER_CHANGE_EVENT, initVideoShelfPlayer } from '../lib/videoShelfPlayer';
   import {
-    VIDEO_ID_PATTERN,
     VIDEO_KINDS,
     isFilterActive,
     matchesVideoFilter,
@@ -480,68 +532,8 @@ const hasApiData = fanShelves.length > 0 || ownerUploads !== undefined;
     type VideoKind,
   } from '../lib/videoShelf';
 
-  const stage = document.querySelector<HTMLElement>('[data-video-stage]');
-  const cards = Array.from(document.querySelectorAll<HTMLAnchorElement>('[data-video-card]'));
-
-  if (stage) {
-    const embedBase = stage.dataset.embedBase ?? '';
-    const frame = stage.querySelector<HTMLElement>('[data-stage-frame]');
-    const title = stage.querySelector<HTMLElement>('[data-stage-title]');
-    const channel = stage.querySelector<HTMLAnchorElement>('[data-stage-channel]');
-    const watch = stage.querySelector<HTMLAnchorElement>('[data-stage-watch]');
-    const facade = stage.querySelector<HTMLAnchorElement>('[data-stage-facade]');
-
-    // 再生ボタンが押されたときに初めて公式プレイヤーを読み込む（自動再生はユーザー操作の直後のみ）。
-    const play = (card: HTMLAnchorElement) => {
-      const videoId = card.dataset.videoId ?? '';
-      if (!frame || !VIDEO_ID_PATTERN.test(videoId)) return false;
-
-      const iframe = document.createElement('iframe');
-      iframe.src = `${embedBase}${videoId}?autoplay=1`;
-      iframe.title = card.dataset.title ?? 'YouTube video player';
-      iframe.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
-      iframe.referrerPolicy = 'strict-origin-when-cross-origin';
-      iframe.className = 'absolute inset-0 size-full';
-      frame.replaceChildren(iframe);
-
-      if (title && card.dataset.title) title.textContent = card.dataset.title;
-      if (channel && card.dataset.channelName && card.dataset.channelUrl) {
-        channel.textContent = card.dataset.channelName;
-        channel.href = card.dataset.channelUrl;
-      }
-      if (watch) watch.href = card.href;
-      // 同じ動画がおすすめ棚とチャンネルの新着の両方にある場合は、両方を選択中にする。
-      for (const other of cards) {
-        if (other.dataset.videoId === videoId) other.setAttribute('aria-current', 'true');
-        else other.removeAttribute('aria-current');
-      }
-
-      // プレイヤーが画面外にある場合（スマートフォンで一覧を下へ進んだときなど）は表示位置まで戻す。
-      const rect = frame.getBoundingClientRect();
-      if (rect.top < 0 || rect.bottom > window.innerHeight) {
-        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        frame.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
-      }
-      iframe.focus({ preventScroll: true });
-      return true;
-    };
-
-    const handleClick = (event: MouseEvent, card: HTMLAnchorElement) => {
-      // 修飾キー付きのクリックは通常のリンクとしてYouTubeで開く。
-      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
-        return;
-      }
-      if (play(card)) event.preventDefault();
-    };
-
-    for (const card of cards) {
-      card.addEventListener('click', (event) => handleClick(event, card));
-    }
-    facade?.addEventListener('click', (event) => {
-      const current = cards.find((card) => card.getAttribute('aria-current') === 'true');
-      if (current) handleClick(event, current);
-    });
-  }
+  // 再生ステージ（前へ・次へ、連続再生、再生できない動画の処理）。
+  initVideoShelfPlayer();
 
   // タイトル・チャンネル名での検索と、種別・カテゴリでの絞り込み。
   const filter = document.querySelector<HTMLElement>('#video-filter');
@@ -602,6 +594,8 @@ const hasApiData = fanShelves.length > 0 || ownerUploads !== undefined;
           : matched.size === 1
             ? count.dataset.singular
             : count.dataset.count?.replace('{count}', String(matched.size))) ?? '';
+      // 再生の操作欄に、飛ばす動画が変わったことを知らせる。
+      document.dispatchEvent(new Event(FILTER_CHANGE_EVENT));
     };
 
     filter.hidden = false;
