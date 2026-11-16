@@ -1,7 +1,7 @@
 ---
 import type { Locale } from '../../lib/locale';
 import { messages } from '../../lib/messages';
-import { youtubeWatchUrl } from '../../lib/videoShelf';
+import { formatDuration, youtubeWatchUrl, type VideoKind } from '../../lib/videoShelf';
 
 interface Props {
   locale: Locale;
@@ -11,17 +11,37 @@ interface Props {
   thumbnailUrl: string;
   channelName: string;
   channelUrl: string;
+  /** 種別。手動で登録した動画などで未取得の場合は省略する。 */
+  kind?: VideoKind;
+  durationSeconds?: number;
   /** 再生ステージで選択中かどうか */
   current?: boolean;
 }
 
-const { locale, videoId, title, publishedAt, thumbnailUrl, channelName, channelUrl, current } =
-  Astro.props;
+const {
+  locale,
+  videoId,
+  title,
+  publishedAt,
+  thumbnailUrl,
+  channelName,
+  channelUrl,
+  kind,
+  durationSeconds,
+  current,
+} = Astro.props;
 const t = messages[locale];
 const dateFormat = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'Asia/Tokyo' });
+// 「通常」はラベルを付けず、区別が必要な種別だけを示す。
+const kindLabel = kind === 'live' ? t.kindLive : kind === 'short' ? t.kindShort : undefined;
 ---
 
-<li class="bg-surface border-muted/25 has-[[aria-current=true]]:border-accent/70 grid content-start overflow-hidden rounded-lg border transition-colors">
+<li
+  class="bg-surface border-muted/25 has-[[aria-current=true]]:border-accent/70 grid content-start overflow-hidden rounded-lg border transition-colors"
+  data-video-item
+  data-kind={kind}
+  data-search={`${title} ${channelName}`}
+>
   {/* JavaScriptが有効なときは再生ステージで再生し、無効なときはYouTubeの視聴ページを開く。 */}
   <a
     href={youtubeWatchUrl(videoId)}
@@ -33,6 +53,7 @@ const dateFormat = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZo
     data-channel-url={channelUrl}
     aria-current={current ? 'true' : undefined}
   >
+    {/* サムネイルは改変・被覆しない（規約）。種別や長さは画像の外に表示する。 */}
     <img
       src={thumbnailUrl}
       alt=""
@@ -46,6 +67,19 @@ const dateFormat = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZo
       {title}
     </span>
   </a>
+  {(kindLabel || durationSeconds !== undefined) && (
+    <p class="text-muted -mt-1 flex flex-wrap items-center gap-2 px-4 pb-3 text-xs">
+      {kindLabel && (
+        <span class="border-warm/50 text-warm rounded-sm border px-1.5 py-0.5">{kindLabel}</span>
+      )}
+      {durationSeconds !== undefined && (
+        <span class="font-mono">
+          <span class="sr-only">{t.duration}: </span>
+          {formatDuration(durationSeconds)}
+        </span>
+      )}
+    </p>
+  )}
   {/* 公開元を明示する。チャンネル名はYouTubeのチャンネルページへのリンク。 */}
   <p class="text-muted -mt-2 flex flex-wrap justify-between gap-x-3 px-4 pb-4 text-sm">
     <a href={channelUrl} class="hover:text-fg underline-offset-4 hover:underline">

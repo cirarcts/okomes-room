@@ -108,6 +108,7 @@ describe('toUploadVideo', () => {
       title: '【曲名】 Cover <b>',
       publishedAt: '2026-11-01T00:00:00.000Z',
       thumbnailUrl: 'https://i.ytimg.com/vi/aaaaaaaaaa1/mqdefault.jpg',
+      kind: 'regular',
     });
   });
 
@@ -118,6 +119,30 @@ describe('toUploadVideo', () => {
       }),
     );
     expect(video.thumbnailUrl).toBeUndefined();
+  });
+});
+
+describe('動画の種別', () => {
+  it('長さと配信情報から種別と秒数を付ける', () => {
+    expect(
+      toUploadVideo({ ...apiVideo('aaaaaaaaaa1'), contentDetails: { duration: 'PT4M10S' } }),
+    ).toMatchObject({ kind: 'regular', durationSeconds: 250 });
+    expect(
+      toUploadVideo({ ...apiVideo('aaaaaaaaaa1'), contentDetails: { duration: 'PT59S' } }),
+    ).toMatchObject({ kind: 'short', durationSeconds: 59 });
+    expect(
+      toUploadVideo({
+        ...apiVideo('aaaaaaaaaa1'),
+        contentDetails: { duration: 'PT1H' },
+        liveStreamingDetails: {},
+      }),
+    ).toMatchObject({ kind: 'live', durationSeconds: 3600 });
+  });
+
+  it('長さが解釈できなければ秒数を省き、通常の動画として扱う', () => {
+    const video = toUploadVideo({ ...apiVideo('aaaaaaaaaa1'), contentDetails: { duration: '?' } });
+    expect(video.kind).toBe('regular');
+    expect(video).not.toHaveProperty('durationSeconds');
   });
 });
 
@@ -221,6 +246,19 @@ describe('fetchChannelUploads', () => {
     expect(calls.every((url) => url.searchParams.get('key') === 'test-key')).toBe(true);
     // 新着がなければ videos.list は呼ばない
     expect(calls.some((url) => url.pathname.endsWith('/videos'))).toBe(false);
+  });
+
+  it('videos.list で種別の判定に必要な項目を取得する', async () => {
+    const { fetchFn, calls } = mockFetch({
+      playlists: { [CHANNEL_A]: 'UUa' },
+      playlistItems: { UUa: ['aaaaaaaaaa1'] },
+      videos: [apiVideo('aaaaaaaaaa1')],
+    });
+    await fetchChannelUploads([channels[0]], 'test-key', fetchFn, NOW);
+    const videosCall = calls.find((url) => url.pathname.endsWith('/videos'));
+    expect(videosCall?.searchParams.get('part')?.split(',')).toEqual(
+      expect.arrayContaining(['snippet', 'status', 'contentDetails', 'liveStreamingDetails']),
+    );
   });
 
   it('チャンネルがなければ通信しない', async () => {

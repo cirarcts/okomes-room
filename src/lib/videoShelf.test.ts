@@ -4,6 +4,12 @@ import {
   CHANNEL_ID_PATTERN,
   VIDEO_ID_PATTERN,
   buildShelf,
+  classifyVideo,
+  formatDuration,
+  matchesVideoFilter,
+  normalizeSearchText,
+  parseIsoDuration,
+  parseSearchTerms,
   youtubeChannelUrl,
   youtubeThumbnailUrl,
   youtubeWatchUrl,
@@ -91,5 +97,80 @@ describe('YouTubeのURL', () => {
     expect(youtubeThumbnailUrl('abc_DEF-123', 'mqdefault')).toBe(
       'https://i.ytimg.com/vi/abc_DEF-123/mqdefault.jpg',
     );
+  });
+});
+
+describe('parseIsoDuration', () => {
+  it.each([
+    ['PT45S', 45],
+    ['PT3M', 180],
+    ['PT3M1S', 181],
+    ['PT1H2M3S', 3723],
+    ['P1DT1S', 86401],
+    ['P0D', 0],
+  ])('%s は %d 秒', (value, seconds) => {
+    expect(parseIsoDuration(value)).toBe(seconds);
+  });
+
+  it.each(['', 'P', 'PT', '3:00', 'PT1.5S', 'garbage'])('%s は解釈できない', (value) => {
+    expect(parseIsoDuration(value)).toBeUndefined();
+  });
+});
+
+describe('classifyVideo', () => {
+  it('配信・プレミアの情報があれば長さに関係なく live', () => {
+    expect(classifyVideo({ durationSeconds: 30, hasLiveStreamingDetails: true })).toBe('live');
+  });
+
+  it('3分ちょうどまでは short、それを超えると regular', () => {
+    expect(classifyVideo({ durationSeconds: 180, hasLiveStreamingDetails: false })).toBe('short');
+    expect(classifyVideo({ durationSeconds: 181, hasLiveStreamingDetails: false })).toBe('regular');
+    expect(classifyVideo({ durationSeconds: 1, hasLiveStreamingDetails: false })).toBe('short');
+  });
+
+  it('長さが不明または0秒なら regular', () => {
+    expect(classifyVideo({ hasLiveStreamingDetails: false })).toBe('regular');
+    expect(classifyVideo({ durationSeconds: 0, hasLiveStreamingDetails: false })).toBe('regular');
+  });
+});
+
+describe('検索と絞り込み', () => {
+  it('全角・半角と大文字・小文字をそろえて語に分ける', () => {
+    expect(parseSearchTerms('  ＧＴ７　Cover  ')).toEqual(['gt7', 'cover']);
+    expect(parseSearchTerms('   ')).toEqual([]);
+  });
+
+  const text = normalizeSearchText('【BABYMETAL】Arkadia - Guitar Cover cir*');
+
+  it('すべての語を含む場合だけ一致する', () => {
+    expect(matchesVideoFilter(text, 'regular', { terms: ['arkadia', 'cover'], kind: 'all' })).toBe(
+      true,
+    );
+    expect(matchesVideoFilter(text, 'regular', { terms: ['arkadia', 'solo'], kind: 'all' })).toBe(
+      false,
+    );
+    expect(matchesVideoFilter(text, 'regular', { terms: [], kind: 'all' })).toBe(true);
+  });
+
+  it('種別を指定すると、種別が一致するものだけが残る', () => {
+    expect(matchesVideoFilter(text, 'short', { terms: [], kind: 'short' })).toBe(true);
+    expect(matchesVideoFilter(text, 'regular', { terms: [], kind: 'short' })).toBe(false);
+  });
+
+  it('種別が未取得の動画は「すべて」でだけ表示する', () => {
+    expect(matchesVideoFilter(text, undefined, { terms: [], kind: 'all' })).toBe(true);
+    expect(matchesVideoFilter(text, undefined, { terms: [], kind: 'regular' })).toBe(false);
+  });
+});
+
+describe('formatDuration', () => {
+  it.each([
+    [0, '0:00'],
+    [59, '0:59'],
+    [180, '3:00'],
+    [3723, '1:02:03'],
+    [36000, '10:00:00'],
+  ])('%d 秒は %s', (seconds, text) => {
+    expect(formatDuration(seconds)).toBe(text);
   });
 });

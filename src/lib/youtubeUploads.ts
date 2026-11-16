@@ -5,7 +5,7 @@
  */
 import { z } from 'astro/zod';
 
-import { VIDEO_ID_PATTERN } from './videoShelf';
+import { VIDEO_ID_PATTERN, classifyVideo, parseIsoDuration, type VideoKind } from './videoShelf';
 
 const API_BASE_URL = 'https://www.googleapis.com/youtube/v3/';
 /** 1チャンネルあたりに取得する新着の件数（`playlistItems.list` の maxResults、上限50）。 */
@@ -28,6 +28,8 @@ export interface UploadVideo {
   /** ISO 8601 */
   publishedAt: string;
   thumbnailUrl?: string;
+  kind: VideoKind;
+  durationSeconds?: number;
 }
 
 export interface ChannelUploads {
@@ -68,6 +70,9 @@ const apiVideo = z.object({
     embeddable: z.boolean().optional(),
     madeForKids: z.boolean().optional(),
   }),
+  contentDetails: z.object({ duration: z.string().optional() }).optional(),
+  // 配信のアーカイブとプレミア公開にだけ含まれる。中身は使わず、有無だけで判定する。
+  liveStreamingDetails: z.object({}).optional(),
 });
 export type ApiVideo = z.infer<typeof apiVideo>;
 
@@ -110,12 +115,19 @@ function pickThumbnail(video: ApiVideo): string | undefined {
 
 export function toUploadVideo(video: ApiVideo): UploadVideo {
   const thumbnailUrl = pickThumbnail(video);
+  const duration = video.contentDetails?.duration;
+  const durationSeconds = duration ? parseIsoDuration(duration) : undefined;
   return {
     id: video.id,
     // タイトルは改変せずに表示する。
     title: video.snippet.title,
     publishedAt: new Date(video.snippet.publishedAt).toISOString(),
     ...(thumbnailUrl ? { thumbnailUrl } : {}),
+    kind: classifyVideo({
+      durationSeconds,
+      hasLiveStreamingDetails: video.liveStreamingDetails !== undefined,
+    }),
+    ...(durationSeconds !== undefined ? { durationSeconds } : {}),
   };
 }
 
@@ -224,7 +236,12 @@ export async function fetchChannelUploads(
     for (const ids of chunk([...new Set([...videoIdsByChannel.values()].flat())], 50)) {
       const result = await request(
         'videos',
-        { part: 'snippet,status', id: ids.join(','), maxResults: String(MAX_IDS_PER_REQUEST) },
+        {
+          // part を増やしても使用量（1回1ユニット）は変わらない。
+          part: 'snippet,status,contentDetails,liveStreamingDetails',
+          id: ids.join(','),
+          maxResults: String(MAX_IDS_PER_REQUEST),
+        },
         videosResponse,
       );
       for (const item of result.items) details.set(item.id, item);
