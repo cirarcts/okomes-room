@@ -4,7 +4,7 @@ import { z } from 'astro/zod';
 
 import videoChannelsJson from './content/video-shelf/channels.json';
 import { EFFECT_CATEGORIES } from './lib/kemperEffectCategories';
-import { CHANNEL_ID_PATTERN, VIDEO_ID_PATTERN } from './lib/videoShelf';
+import { CHANNEL_ID_PATTERN, VIDEO_ID_PATTERN, VIDEO_KINDS } from './lib/videoShelf';
 import { fetchChannelUploads } from './lib/youtubeUploads';
 
 const setting = z.object({
@@ -146,6 +146,8 @@ const channelUploads = defineCollection({
         title: z.string().min(1),
         publishedAt: z.coerce.date(),
         thumbnailUrl: z.url().optional(),
+        kind: z.enum(VIDEO_KINDS),
+        durationSeconds: z.number().int().nonnegative().optional(),
       }),
     ),
   }),
@@ -159,6 +161,8 @@ const shelfVideos = defineCollection({
     channel: z.string().regex(SLUG_PATTERN),
     title: z.string().min(1),
     publishedAt: z.coerce.date(),
+    // 任意。省略した場合は種別未取得として扱い、種別での絞り込みでは表示しない。
+    kind: z.enum(VIDEO_KINDS).optional(),
   }),
 });
 

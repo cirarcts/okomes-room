@@ -146,6 +146,64 @@ const countLabel = (count: number) =>
       <p class="bg-surface border-muted/25 text-muted mb-12 rounded-lg border p-6">{t.noVideos}</p>
     )}
 
+    {stage && (
+      // 絞り込み。JavaScriptが無効な場合は使えないため、スクリプトで表示する。
+      <div
+        id="video-filter"
+        class="bg-subtle border-muted/20 mb-10 grid gap-4 rounded-lg border p-4 sm:p-5"
+        hidden
+      >
+        <div class="grid gap-2">
+          <label for="video-query" class="text-sm font-semibold">
+            {t.searchVideos}
+          </label>
+          <input
+            id="video-query"
+            type="search"
+            placeholder={t.videoSearchPlaceholder}
+            class="bg-surface border-muted/40 min-h-11 w-full max-w-md rounded-md border px-3"
+          />
+        </div>
+        <fieldset class="grid gap-2" aria-describedby="video-kind-note">
+          <legend class="mb-2 text-sm font-semibold">{t.videoKind}</legend>
+          <div class="flex flex-wrap gap-2">
+            {(
+              [
+                ['all', t.kindAll],
+                ['regular', t.kindRegular],
+                ['short', t.kindShort],
+                ['live', t.kindLive],
+              ] as const
+            ).map(([value, label]) => (
+              <label class="bg-surface border-muted/30 has-checked:border-accent/70 has-checked:text-accent has-focus-visible:outline-accent inline-flex min-h-11 cursor-pointer items-center rounded-full border px-4 text-sm transition-colors has-focus-visible:outline-2 has-focus-visible:outline-offset-2">
+                <input
+                  type="radio"
+                  name="video-kind"
+                  value={value}
+                  class="sr-only"
+                  checked={value === 'all'}
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+          <p id="video-kind-note" class="text-muted text-xs">
+            {t.kindNote}
+          </p>
+        </fieldset>
+        <p
+          id="video-count"
+          role="status"
+          class="text-muted text-sm"
+          data-empty={t.noMatchingVideos}
+          data-singular={
+            locale === 'en' ? '1 matching video' : t.matchingVideos.replace('{count}', '1')
+          }
+          data-count={t.matchingVideos}
+        ></p>
+      </div>
+    )}
+
     {picks.length > 0 && (
       <section aria-labelledby="picks-title" class="mb-12">
         <div class="mb-4 flex items-baseline justify-between gap-4">
@@ -154,7 +212,7 @@ const countLabel = (count: number) =>
           </h2>
           <p class="text-muted text-sm">{countLabel(picks.length)}</p>
         </div>
-        <ul class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <ul class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-shelf-list>
           {picks.map((video) => (
             <VideoCard
               locale={locale}
@@ -164,10 +222,14 @@ const countLabel = (count: number) =>
               thumbnailUrl={youtubeThumbnailUrl(video.id, 'mqdefault')}
               channelName={video.channelData.name}
               channelUrl={youtubeChannelUrl(video.channelData.channelId)}
+              kind={video.kind}
               current={video.id === stage?.id}
             />
           ))}
         </ul>
+        <p class="text-muted text-sm" data-shelf-empty hidden>
+          {t.noMatchingVideos}
+        </p>
       </section>
     )}
 
@@ -205,20 +267,29 @@ const countLabel = (count: number) =>
             ) : uploads.videos.length === 0 ? (
               <p class="text-muted text-sm">{t.noUploads}</p>
             ) : (
-              <ul class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {uploads.videos.map((video) => (
-                  <VideoCard
-                    locale={locale}
-                    videoId={video.id}
-                    title={video.title}
-                    publishedAt={video.publishedAt}
-                    thumbnailUrl={video.thumbnailUrl ?? youtubeThumbnailUrl(video.id, 'mqdefault')}
-                    channelName={channel.name}
-                    channelUrl={youtubeChannelUrl(channel.channelId)}
-                    current={video.id === stage?.id}
-                  />
-                ))}
-              </ul>
+              <>
+                <ul class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-shelf-list>
+                  {uploads.videos.map((video) => (
+                    <VideoCard
+                      locale={locale}
+                      videoId={video.id}
+                      title={video.title}
+                      publishedAt={video.publishedAt}
+                      thumbnailUrl={
+                        video.thumbnailUrl ?? youtubeThumbnailUrl(video.id, 'mqdefault')
+                      }
+                      channelName={channel.name}
+                      channelUrl={youtubeChannelUrl(channel.channelId)}
+                      kind={video.kind}
+                      durationSeconds={video.durationSeconds}
+                      current={video.id === stage?.id}
+                    />
+                  ))}
+                </ul>
+                <p class="text-muted text-sm" data-shelf-empty hidden>
+                  {t.noMatchingVideos}
+                </p>
+              </>
             )}
           </section>
         ))}
@@ -272,7 +343,14 @@ const countLabel = (count: number) =>
 </BaseLayout>
 
 <script>
-  import { VIDEO_ID_PATTERN } from '../lib/videoShelf';
+  import {
+    VIDEO_ID_PATTERN,
+    VIDEO_KINDS,
+    matchesVideoFilter,
+    normalizeSearchText,
+    parseSearchTerms,
+    type VideoKind,
+  } from '../lib/videoShelf';
 
   const stage = document.querySelector<HTMLElement>('[data-video-stage]');
   const cards = Array.from(document.querySelectorAll<HTMLAnchorElement>('[data-video-card]'));
@@ -335,5 +413,59 @@ const countLabel = (count: number) =>
       const current = cards.find((card) => card.getAttribute('aria-current') === 'true');
       if (current) handleClick(event, current);
     });
+  }
+
+  // タイトル・チャンネル名での検索と、種別での絞り込み。
+  const filter = document.querySelector<HTMLElement>('#video-filter');
+  const query = document.querySelector<HTMLInputElement>('#video-query');
+  const count = document.querySelector<HTMLElement>('#video-count');
+  const kindInputs = Array.from(
+    document.querySelectorAll<HTMLInputElement>('input[name="video-kind"]'),
+  );
+  const isVideoKind = (value: string | undefined): value is VideoKind =>
+    VIDEO_KINDS.some((kind) => kind === value);
+  const items = Array.from(document.querySelectorAll<HTMLElement>('[data-video-item]'), (item) => ({
+    item,
+    videoId: item.querySelector<HTMLElement>('[data-video-card]')?.dataset.videoId ?? '',
+    search: normalizeSearchText(item.dataset.search ?? ''),
+    kind: isVideoKind(item.dataset.kind) ? item.dataset.kind : undefined,
+  }));
+  const lists = Array.from(document.querySelectorAll<HTMLElement>('[data-shelf-list]'));
+
+  if (filter && query && count && items.length > 0) {
+    const updateResults = () => {
+      const selected = kindInputs.find((input) => input.checked)?.value;
+      const kind = isVideoKind(selected) ? selected : 'all';
+      const terms = parseSearchTerms(query.value);
+      // おすすめと新着の両方にある動画は1本として数える。
+      const matched = new Set<string>();
+      for (const entry of items) {
+        entry.item.hidden = !matchesVideoFilter(entry.search, entry.kind, { terms, kind });
+        if (!entry.item.hidden) matched.add(entry.videoId);
+      }
+      for (const list of lists) {
+        const empty = !Array.from(list.children).some(
+          (child) => child instanceof HTMLElement && !child.hidden,
+        );
+        list.hidden = empty;
+        const message = list.nextElementSibling;
+        if (message instanceof HTMLElement && message.hasAttribute('data-shelf-empty')) {
+          message.hidden = !empty;
+        }
+      }
+      count.textContent =
+        (matched.size === 0
+          ? count.dataset.empty
+          : matched.size === 1
+            ? count.dataset.singular
+            : count.dataset.count?.replace('{count}', String(matched.size))) ?? '';
+    };
+
+    filter.hidden = false;
+    updateResults();
+    query.addEventListener('input', updateResults);
+    for (const input of kindInputs) input.addEventListener('change', updateResults);
+    // ブラウザの「戻る」で入力内容が復元された場合にも結果を合わせる。
+    window.addEventListener('pageshow', updateResults);
   }
 </script>
