@@ -1,8 +1,9 @@
 import { defineCollection } from 'astro:content';
-import { glob } from 'astro/loaders';
+import { file, glob } from 'astro/loaders';
 import { z } from 'astro/zod';
 
 import { EFFECT_CATEGORIES } from './lib/kemperEffectCategories';
+import { CHANNEL_ID_PATTERN, VIDEO_ID_PATTERN } from './lib/videoShelf';
 
 const setting = z.object({
   label: z.string().min(1),
@@ -73,4 +74,31 @@ const kemperRigs = defineCollection({
   }),
 });
 
-export const collections = { kemperRigs };
+const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+// 動画の棚：表示対象として手動で選んだチャンネル。`id` は設定内の固定slug。
+const videoChannels = defineCollection({
+  loader: file('./src/content/video-shelf/channels.json'),
+  schema: z.object({
+    id: z
+      .string()
+      .regex(SLUG_PATTERN, 'チャンネルのidは英小文字・数字・ハイフンで指定してください。'),
+    channelId: z.string().regex(CHANNEL_ID_PATTERN, 'チャンネルIDは UC から始まる24文字です。'),
+    name: z.string().min(1),
+    category: z.string().min(1).optional(),
+    enabled: z.boolean().default(true),
+  }),
+});
+
+// 動画の棚：手動で登録した公開動画。`id` はYouTubeの動画ID。
+const shelfVideos = defineCollection({
+  loader: file('./src/content/video-shelf/videos.json'),
+  schema: z.object({
+    id: z.string().regex(VIDEO_ID_PATTERN, '動画IDは11文字です。'),
+    channel: z.string().regex(SLUG_PATTERN),
+    title: z.string().min(1),
+    publishedAt: z.coerce.date(),
+  }),
+});
+
+export const collections = { kemperRigs, videoChannels, shelfVideos };

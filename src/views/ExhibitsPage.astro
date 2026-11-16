@@ -24,27 +24,48 @@ const title = locale === 'ja' ? '展示室' : 'Exhibits';
       <p class="text-muted">{description}</p>
     </header>
 
-    <ul>
-      <li>
-        <a
-          href={localizedPath(locale, '/exhibits/kemper/')}
-          class="bg-surface hover:bg-subtle border-muted/25 hover:border-accent/60 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-lg border px-5 py-6 transition-colors sm:px-7"
-          aria-labelledby="kemper-entry-title"
-          aria-describedby="kemper-entry-description"
-        >
-          <div class="grid gap-2">
-            <h2 id="kemper-entry-title" class="text-lg font-semibold sm:text-xl" lang="en">
-              Kemper Rig Viewer
-            </h2>
-            <p id="kemper-entry-description" class="text-muted text-sm">
-              {t.kemperDescription}
-            </p>
-          </div>
-          <span class="text-accent text-lg" aria-hidden="true">
-            →
-          </span>
-        </a>
-      </li>
+    <ul class="grid gap-3">
+      {[
+        {
+          id: 'kemper',
+          href: '/exhibits/kemper/',
+          title: 'Kemper Rig Viewer',
+          titleLang: 'en',
+          description: t.kemperDescription,
+        },
+        {
+          id: 'video-shelf',
+          href: '/exhibits/video-shelf/',
+          title: t.videoShelfTitle,
+          titleLang: locale,
+          description: t.videoShelfDescription,
+        },
+      ].map((exhibit) => (
+        <li>
+          <a
+            href={localizedPath(locale, exhibit.href)}
+            class="bg-surface hover:bg-subtle border-muted/25 hover:border-accent/60 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-lg border px-5 py-6 transition-colors sm:px-7"
+            aria-labelledby={`${exhibit.id}-entry-title`}
+            aria-describedby={`${exhibit.id}-entry-description`}
+          >
+            <div class="grid gap-2">
+              <h2
+                id={`${exhibit.id}-entry-title`}
+                class="text-lg font-semibold sm:text-xl"
+                lang={exhibit.titleLang}
+              >
+                {exhibit.title}
+              </h2>
+              <p id={`${exhibit.id}-entry-description`} class="text-muted text-sm">
+                {exhibit.description}
+              </p>
+            </div>
+            <span class="text-accent text-lg" aria-hidden="true">
+              →
+            </span>
+          </a>
+        </li>
+      ))}
     </ul>
   </section>
 </BaseLayout>

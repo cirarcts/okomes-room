@@ -19,3 +19,38 @@ Rigの表示データは [src/content/kemper-rigs](../src/content/kemper-rigs) �
 ### Rig Managerとの照合
 
 Gundy - Brown Soundは、Rig Manager 4.3.13 / PROFILER OS 14.2.2の表示と既存のキャプチャで確認した。記録対象はAmplifier、Cabinet、前後4スロットずつのエフェクト、Rig Volume。値は画面上の単位と精度を保持する（例：`24 ms`、`27.0 Hz`、`+90°`、`2.410 s`、`<0.0>`）。Input・Outputの設定、Morphの別状態、ロックやUI Modeなどのエディター操作は公開データに含めていない。名前だけを記録した既存Rigは、取得していない設定を補完せずに表示する。
+
+## 動画の棚（Video Shelf）
+
+表示対象のチャンネルと動画は [src/content/video-shelf](../src/content/video-shelf) のJSONで手動管理します。方式を選んだ理由は [video-shelf.md](video-shelf.md) を参照してください。
+
+### チャンネル（`channels.json`）
+
+```json
+[{ "id": "example-channel", "channelId": "UC…（24文字）", "name": "表示名", "category": "music" }]
+```
+
+- `id` は設定内の固定slugです（英小文字・数字・ハイフン）。動画からはこのslugで参照します。
+- `channelId` は `UC` から始まる24文字のチャンネルIDです。`@ハンドル` ではなく、YouTube上で確認したIDを記入します。
+- `category` は任意の短いラベルで、両言語で同じ表記を表示します。
+- `enabled: false` にすると、チャンネルとその動画を非表示にします（省略時は表示）。
+
+### 動画（`videos.json`）
+
+```json
+[
+  {
+    "id": "11文字の動画ID",
+    "channel": "example-channel",
+    "title": "動画タイトル",
+    "publishedAt": "2026-11-16"
+  }
+]
+```
+
+- `id` は動画URL（`watch?v=` の後ろ）の11文字です。同じIDは1件だけ表示します。
+- `title` はYouTube上のタイトルをそのまま記入します（改変しない）。
+- `publishedAt` は公開日（`YYYY-MM-DD`）です。一覧は公開日の新しい順に並びます。
+- 未登録のチャンネルを参照するとビルドが失敗します。
+
+チャンネルIDや動画IDは推測で作成しません。公開動画のうち、埋め込みが許可されているものを登録します。追加・変更後は `npm run verify` を実行します。
