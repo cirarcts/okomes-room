@@ -1,0 +1,26 @@
+---
+import type { ComponentProps } from 'astro/types';
+
+import VideoCard from './VideoCard.astro';
+
+type CardProps = ComponentProps<typeof VideoCard>;
+
+interface Props {
+  /** 棚の内容を表す名前（スクリーンリーダー向け） */
+  label: string;
+  items: Omit<CardProps, 'variant'>[];
+  variant?: 'shelf' | 'compact';
+}
+
+const { label, items, variant = 'shelf' } = Astro.props;
+---
+
+{/* 横スクロールの棚。カードのリンクにフォーカスすると、ブラウザが表示位置まで自動でスクロールする。 */}
+<ul
+  class="-mx-1 flex snap-x snap-mandatory scroll-px-1 gap-4 overflow-x-auto overscroll-x-contain px-1 pt-1 pb-3"
+  aria-label={label}
+>
+  {items.map((item) => (
+    <VideoCard {...item} variant={variant} />
+  ))}
+</ul>

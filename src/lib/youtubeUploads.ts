@@ -12,6 +12,10 @@ const API_BASE_URL = 'https://www.googleapis.com/youtube/v3/';
 export const UPLOADS_PER_CHANNEL = 12;
 /** `id` に複数指定できる上限。 */
 const MAX_IDS_PER_REQUEST = 50;
+/** 管理人チャンネルの代表作として表示する、視聴回数の上位の件数。 */
+export const POPULAR_COUNT = 5;
+/** 管理人チャンネルの全動画を取得するときのページ数の上限（50件 × 20ページ = 1,000件）。 */
+const MAX_OWNER_PAGES = 20;
 const REQUEST_TIMEOUT_MS = 10_000;
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
@@ -20,6 +24,8 @@ export interface UploadsChannel {
   /** 設定内のslug */
   id: string;
   channelId: string;
+  /** 管理人のチャンネル。全動画を取得し、視聴回数の上位を代表作として返す。 */
+  owner?: boolean;
 }
 
 export interface UploadVideo {
@@ -30,6 +36,8 @@ export interface UploadVideo {
   thumbnailUrl?: string;
   kind: VideoKind;
   durationSeconds?: number;
+  /** 視聴回数（代表作のみ）。統計情報のため、ビルドごとに取り直す（30日を超えて保存しない）。 */
+  viewCount?: number;
 }
 
 export interface ChannelUploads {
@@ -37,7 +45,10 @@ export interface ChannelUploads {
   status: 'ok' | 'error';
   /** ISO 8601 */
   fetchedAt: string;
+  /** 新着（公開日の新しい順） */
   videos: UploadVideo[];
+  /** 視聴回数の多い順の代表作（管理人のチャンネルのみ） */
+  popular?: UploadVideo[];
 }
 
 // APIの応答は使う項目だけを検証する。
@@ -54,6 +65,7 @@ const channelsResponse = z.object({
 
 const playlistItemsResponse = z.object({
   items: z.array(z.object({ contentDetails: z.object({ videoId: z.string() }) })).default([]),
+  nextPageToken: z.string().optional(),
 });
 
 const apiVideo = z.object({
@@ -73,6 +85,8 @@ const apiVideo = z.object({
   contentDetails: z.object({ duration: z.string().optional() }).optional(),
   // 配信のアーカイブとプレミア公開にだけ含まれる。中身は使わず、有無だけで判定する。
   liveStreamingDetails: z.object({}).optional(),
+  // 視聴回数は文字列で返る。非表示にされている場合は含まれない。
+  statistics: z.object({ viewCount: z.string().regex(/^\d+$/).optional() }).optional(),
 });
 export type ApiVideo = z.infer<typeof apiVideo>;
 
@@ -131,6 +145,23 @@ export function toUploadVideo(video: ApiVideo): UploadVideo {
   };
 }
 
+/** 視聴回数を数値で返す。取得できない場合は `undefined`。 */
+export function viewCountOf(video: ApiVideo): number | undefined {
+  const value = video.statistics?.viewCount;
+  return value === undefined ? undefined : Number(value);
+}
+
+/** 視聴回数の多い順に上位を選ぶ（視聴回数が不明な動画は除く）。同数なら新しい順。 */
+export function pickPopular(videos: readonly ApiVideo[], count: number): UploadVideo[] {
+  return videos
+    .flatMap((video) => {
+      const viewCount = viewCountOf(video);
+      return viewCount === undefined ? [] : [{ ...toUploadVideo(video), viewCount }];
+    })
+    .sort((a, b) => b.viewCount - a.viewCount || b.publishedAt.localeCompare(a.publishedAt))
+    .slice(0, count);
+}
+
 export function chunk<T>(items: readonly T[], size: number): T[][] {
   const chunks: T[][] = [];
   for (let index = 0; index < items.length; index += size) {
@@ -171,6 +202,7 @@ function createClient(apiKey: string, fetchFn: FetchLike) {
  * 取得できなかったチャンネルは `status: 'error'` として返す。
  *
  * 使用量の目安：channels.list 1 + playlistItems.list（チャンネル数）+ videos.list（50件ごとに1）ユニット。
+ * 管理人のチャンネルは全動画を50件ずつ取得するため、さらに動画50件ごとに約2ユニット増える。
  */
 export async function fetchChannelUploads(
   channels: readonly UploadsChannel[],
@@ -209,21 +241,30 @@ export async function fetchChannelUploads(
     return channels.map(failed);
   }
 
-  // 2. チャンネルごとに新着の動画IDを取得する。
+  // 2. チャンネルごとに新着の動画IDを取得する。管理人のチャンネルは代表作を選ぶために全動画を取得する。
   const videoIdsByChannel = new Map<string, string[]>();
   for (const channel of channels) {
     const playlistId = uploadsPlaylists.get(channel.channelId);
     if (!playlistId) continue;
     try {
-      const result = await request(
-        'playlistItems',
-        { part: 'contentDetails', playlistId, maxResults: String(UPLOADS_PER_CHANNEL) },
-        playlistItemsResponse,
-      );
-      videoIdsByChannel.set(
-        channel.id,
-        result.items.map((item) => item.contentDetails.videoId),
-      );
+      const ids: string[] = [];
+      let pageToken: string | undefined;
+      for (let page = 0; page < (channel.owner ? MAX_OWNER_PAGES : 1); page++) {
+        const result = await request(
+          'playlistItems',
+          {
+            part: 'contentDetails',
+            playlistId,
+            maxResults: String(channel.owner ? MAX_IDS_PER_REQUEST : UPLOADS_PER_CHANNEL),
+            ...(pageToken ? { pageToken } : {}),
+          },
+          playlistItemsResponse,
+        );
+        ids.push(...result.items.map((item) => item.contentDetails.videoId));
+        pageToken = result.nextPageToken;
+        if (!pageToken) break;
+      }
+      videoIdsByChannel.set(channel.id, ids);
     } catch {
       // このチャンネルだけを取得失敗として扱う。
     }
@@ -238,7 +279,7 @@ export async function fetchChannelUploads(
         'videos',
         {
           // part を増やしても使用量（1回1ユニット）は変わらない。
-          part: 'snippet,status,contentDetails,liveStreamingDetails',
+          part: 'snippet,status,contentDetails,liveStreamingDetails,statistics',
           id: ids.join(','),
           maxResults: String(MAX_IDS_PER_REQUEST),
         },
@@ -253,14 +294,23 @@ export async function fetchChannelUploads(
   return channels.map((channel) => {
     const ids = videoIdsByChannel.get(channel.id);
     if (!ids) return failed(channel);
-    const videos = ids
+    const playable = ids
       .map((id) => details.get(id))
       .filter(
         (video): video is ApiVideo =>
           video !== undefined && video.snippet.channelId === channel.channelId && isPlayable(video),
-      )
+      );
+    const videos = playable
       .map(toUploadVideo)
-      .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
-    return { channel: channel.id, status: 'ok', fetchedAt, videos };
+      .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
+      .slice(0, UPLOADS_PER_CHANNEL);
+    return {
+      channel: channel.id,
+      status: 'ok',
+      fetchedAt,
+      videos,
+      // 管理人自身のチャンネル内での並べ替えのため、集約の制限（III.E.2）には当たらない。
+      ...(channel.owner ? { popular: pickPopular(playable, POPULAR_COUNT) } : {}),
+    };
   });
 }

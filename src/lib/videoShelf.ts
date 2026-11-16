@@ -16,8 +16,62 @@ export interface ShelfChannel {
   id: string;
   channelId: string;
   name: string;
-  category?: string;
+  /** カテゴリの id */
+  categories: string[];
+  /** 大きいほど上に並べる */
+  priority: number;
+  /** 管理人自身のチャンネル */
+  owner: boolean;
   enabled: boolean;
+}
+
+export interface ShelfCategory {
+  id: string;
+  name: string;
+  nameEn: string;
+  order: number;
+}
+
+/**
+ * チャンネル設定とカテゴリ定義の整合性を確かめる。誤りがあればビルドを止める。
+ * - 未定義のカテゴリを参照していないこと
+ * - 管理人のチャンネルが1つまでであること
+ */
+export function validateShelfConfig(
+  channels: readonly ShelfChannel[],
+  categories: readonly ShelfCategory[],
+): void {
+  const categoryIds = new Set(categories.map((category) => category.id));
+  for (const channel of channels) {
+    const unknown = channel.categories.filter((id) => !categoryIds.has(id));
+    if (unknown.length > 0) {
+      throw new Error(
+        `チャンネル "${channel.id}" が未定義のカテゴリを参照しています: ${unknown.join(', ')}`,
+      );
+    }
+  }
+  const owners = channels.filter((channel) => channel.owner);
+  if (owners.length > 1) {
+    throw new Error(
+      `管理人のチャンネル（owner: true）は1つまでです: ${owners.map((c) => c.id).join(', ')}`,
+    );
+  }
+}
+
+/** 優先度の高い順、同じ優先度なら名前順に並べる（元の配列は変更しない）。 */
+export function sortChannels<T extends Pick<ShelfChannel, 'priority' | 'name'>>(
+  channels: readonly T[],
+): T[] {
+  return [...channels].sort(
+    (a, b) => b.priority - a.priority || a.name.localeCompare(b.name, 'ja'),
+  );
+}
+
+/** 表示順（`order` の小さい順）に並べる。 */
+export function sortCategories<T extends Pick<ShelfCategory, 'order' | 'id'>>(
+  categories: readonly T[],
+): T[] {
+  return [...categories].sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
 }
 
 /**
@@ -80,20 +134,29 @@ export interface VideoFilter {
   terms: readonly string[];
   /** `all` はすべての種別（種別未取得を含む） */
   kind: VideoKind | 'all';
+  /** カテゴリの id。`all` はすべてのカテゴリ */
+  category: string;
 }
 
-/**
- * 動画が絞り込み条件に一致するかを判定する。
- * @param searchText `normalizeSearchText` 済みのタイトルとチャンネル名
- * @param kind 種別。未取得の場合は種別を指定した絞り込みには一致しない
- */
-export function matchesVideoFilter(
-  searchText: string,
-  kind: VideoKind | undefined,
-  filter: VideoFilter,
-): boolean {
-  if (filter.kind !== 'all' && kind !== filter.kind) return false;
-  return filter.terms.every((term) => searchText.includes(term));
+export interface FilterTarget {
+  /** `normalizeSearchText` 済みのタイトルとチャンネル名 */
+  searchText: string;
+  /** 種別。未取得の場合は種別を指定した絞り込みには一致しない */
+  kind?: VideoKind;
+  /** 公開元チャンネルのカテゴリ */
+  categories: readonly string[];
+}
+
+/** 何らかの絞り込み条件が指定されているか。 */
+export function isFilterActive(filter: VideoFilter): boolean {
+  return filter.terms.length > 0 || filter.kind !== 'all' || filter.category !== 'all';
+}
+
+/** 動画が絞り込み条件に一致するかを判定する。 */
+export function matchesVideoFilter(target: FilterTarget, filter: VideoFilter): boolean {
+  if (filter.kind !== 'all' && target.kind !== filter.kind) return false;
+  if (filter.category !== 'all' && !target.categories.includes(filter.category)) return false;
+  return filter.terms.every((term) => target.searchText.includes(term));
 }
 
 export interface ShelfItem extends ShelfVideo {
@@ -150,4 +213,11 @@ export function formatDuration(totalSeconds: number): string {
   const seconds = totalSeconds % 60;
   const ss = String(seconds).padStart(2, '0');
   return hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}:${ss}` : `${minutes}:${ss}`;
+}
+
+/** 視聴回数を短く表す（例：ja「1.2万」、en「1.2K」）。 */
+export function formatViewCount(count: number, locale: string): string {
+  return new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(
+    count,
+  );
 }

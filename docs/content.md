@@ -24,15 +24,34 @@ Gundy - Brown Soundは、Rig Manager 4.3.13 / PROFILER OS 14.2.2の表示と既�
 
 表示対象のチャンネルと動画は [src/content/video-shelf](../src/content/video-shelf) のJSONで手動管理します。方式を選んだ理由は [video-shelf.md](video-shelf.md) を参照してください。
 
+### カテゴリ（`categories.json`）
+
+```json
+[{ "id": "music", "name": "音楽", "nameEn": "Music", "order": 30 }]
+```
+
+- `id` はチャンネルから参照する固定slugです。`name` に日本語名、`nameEn` に英語名を記録します。
+- 絞り込みの欄では `order` の小さい順に並びます。表示中のチャンネルで使われていないカテゴリは出しません。
+
 ### チャンネル（`channels.json`）
 
 ```json
-[{ "id": "example-channel", "channelId": "UC…（24文字）", "name": "表示名", "category": "music" }]
+[
+  {
+    "id": "example-channel",
+    "channelId": "UC…（24文字）",
+    "name": "表示名",
+    "categories": ["music"],
+    "priority": 10
+  }
+]
 ```
 
 - `id` は設定内の固定slugです（英小文字・数字・ハイフン）。動画からはこのslugで参照します。
 - `channelId` は `UC` から始まる24文字のチャンネルIDです。`@ハンドル` ではなく、YouTube上で確認したIDを記入します。
-- `category` は任意の短いラベルで、両言語で同じ表記を表示します。
+- `categories` には `categories.json` の `id` を複数指定できます（省略時はなし）。未定義の `id` を書くとビルドが失敗します。
+- `priority` は棚の並び順です。大きいほど上に並び、省略時は0、同じ値なら名前順です。
+- `owner: true` は管理人自身のチャンネルです。推しチャンネルの棚には並べず、ページ下部の「管理人のチャンネル」に表示します。指定できるのは1つまでです。
 - `enabled: false` にすると、チャンネルとその動画を非表示にします（省略時は表示）。
 
 ### 動画（`videos.json`）
@@ -56,6 +75,6 @@ Gundy - Brown Soundは、Rig Manager 4.3.13 / PROFILER OS 14.2.2の表示と既�
 
 ### チャンネルの新着（自動取得）
 
-`YOUTUBE_API_KEY` が設定されている場合、有効なチャンネルの新着がビルド時に自動で取得され、「チャンネルの新着」にチャンネルごとに表示されます。`channels.json` にチャンネルを追加するだけで対象になります。取得したデータはファイルに保存しません（[video-shelf.md](video-shelf.md#phase-2新着の自動取得ハイブリッド構成)）。`videos.json` には、チャンネルをまたいで並べたい動画を「おすすめ」として手動で登録します。
+`YOUTUBE_API_KEY` が設定されている場合、有効なチャンネルの新着がビルド時に自動で取得され、「チャンネルの新着」にチャンネルごとに表示されます。`channels.json` にチャンネルを追加するだけで対象になります。取得したデータはファイルに保存しません（[video-shelf.md](video-shelf.md#phase-2新着の自動取得ハイブリッド構成)）。`videos.json` には、チャンネルをまたいで並べたい動画を「おすすめ」として手動で登録します。管理人のチャンネル（`owner: true`）の動画は `videos.json` に登録しません（登録するとビルドが失敗します）。管理人コーナーの「代表作」は、視聴回数の多い順に上位5本が自動で選ばれます。APIキーがないビルドでは管理人コーナーは表示されません。
 
 チャンネルIDや動画IDは推測で作成しません。公開動画のうち、埋め込みが許可されているものを登録します。追加・変更後は `npm run verify` を実行します。

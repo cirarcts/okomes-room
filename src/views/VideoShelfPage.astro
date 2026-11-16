@@ -1,6 +1,7 @@
 ---
 import { getCollection } from 'astro:content';
 
+import ShelfRow from '../components/video-shelf/ShelfRow.astro';
 import VideoCard from '../components/video-shelf/VideoCard.astro';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getPageLocale, localizedPath } from '../lib/locale';
@@ -8,51 +9,109 @@ import { messages } from '../lib/messages';
 import {
   EMBED_BASE_URL,
   buildShelf,
+  sortCategories,
+  sortChannels,
+  validateShelfConfig,
   youtubeChannelUrl,
   youtubeThumbnailUrl,
   youtubeWatchUrl,
+  type ShelfChannel,
+  type ShelfItem,
 } from '../lib/videoShelf';
 
 const { locale } = getPageLocale(Astro.url.pathname);
 const t = messages[locale];
 
+const categories = sortCategories((await getCollection('videoCategories')).map(({ data }) => data));
 const channels = (await getCollection('videoChannels')).map(({ data }) => data);
-const activeChannels = channels
-  .filter((channel) => channel.enabled)
-  .sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+validateShelfConfig(channels, categories);
 
-// おすすめ棚：手動で選んだ動画。チャンネルをまたいで並べる（API Dataではない）。
-const picks = buildShelf(
+const activeChannels = sortChannels(channels.filter((channel) => channel.enabled));
+const fanChannels = activeChannels.filter((channel) => !channel.owner);
+const ownerChannel = activeChannels.find((channel) => channel.owner);
+const categoryName = (id: string) => {
+  const category = categories.find((entry) => entry.id === id);
+  return category ? (locale === 'en' ? category.nameEn : category.name) : id;
+};
+// 絞り込みには、表示中のチャンネルで使われているカテゴリだけを並べる。
+const usedCategories = categories.filter((category) =>
+  activeChannels.some((channel) => channel.categories.includes(category.id)),
+);
+
+// 手動で選んだ推しの動画（おすすめ）。チャンネルをまたいで並べる（API Dataではないため）。
+// 管理人の代表作は視聴回数から自動で選ぶため、管理人チャンネルの動画は登録しない。
+const fanPicks = buildShelf(
   channels,
   (await getCollection('shelfVideos')).map(({ data }) => data),
 );
+const misplacedPicks = fanPicks.filter((video) => video.channelData.owner);
+if (misplacedPicks.length > 0) {
+  throw new Error(
+    `管理人チャンネルの動画は videos.json に登録しません（代表作は自動で選びます）: ${misplacedPicks.map((video) => video.id).join(', ')}`,
+  );
+}
 
 // チャンネルの新着：ビルド時に自動取得したデータ。規約に合わせてチャンネルごとに分けて表示する。
 const uploadsById = new Map(
   (await getCollection('channelUploads')).map(({ data }) => [data.channel, data]),
 );
-const channelShelves = activeChannels.flatMap((channel) => {
+const fanShelves = fanChannels.flatMap((channel) => {
   const uploads = uploadsById.get(channel.id);
   return uploads ? [{ channel, uploads }] : [];
 });
+const ownerUploads = ownerChannel ? uploadsById.get(ownerChannel.id) : undefined;
+const ownerPopular = ownerUploads?.popular ?? [];
 
-// 再生ステージの初期表示は、おすすめ棚の先頭（なければ最初のチャンネルの新着）。
-const firstUpload = channelShelves.find(({ uploads }) => uploads.videos.length > 0);
-const stage = picks[0]
-  ? {
-      id: picks[0].id,
-      title: picks[0].title,
-      channelName: picks[0].channelData.name,
-      channelUrl: youtubeChannelUrl(picks[0].channelData.channelId),
-    }
-  : firstUpload
-    ? {
-        id: firstUpload.uploads.videos[0].id,
-        title: firstUpload.uploads.videos[0].title,
-        channelName: firstUpload.channel.name,
-        channelUrl: youtubeChannelUrl(firstUpload.channel.channelId),
-      }
-    : undefined;
+type Uploads = NonNullable<typeof ownerUploads>;
+
+function pickCard(video: ShelfItem) {
+  return {
+    locale,
+    videoId: video.id,
+    title: video.title,
+    publishedAt: video.publishedAt,
+    thumbnailUrl: youtubeThumbnailUrl(video.id, 'mqdefault'),
+    channelName: video.channelData.name,
+    channelUrl: youtubeChannelUrl(video.channelData.channelId),
+    kind: video.kind,
+    categories: video.channelData.categories,
+  };
+}
+
+function uploadCard(
+  channel: ShelfChannel,
+  video: Uploads['videos'][number] | NonNullable<Uploads['popular']>[number],
+) {
+  return {
+    locale,
+    videoId: video.id,
+    title: video.title,
+    publishedAt: video.publishedAt,
+    thumbnailUrl: video.thumbnailUrl ?? youtubeThumbnailUrl(video.id, 'mqdefault'),
+    channelName: channel.name,
+    channelUrl: youtubeChannelUrl(channel.channelId),
+    kind: video.kind,
+    durationSeconds: video.durationSeconds,
+    viewCount: 'viewCount' in video ? video.viewCount : undefined,
+    categories: channel.categories,
+  };
+}
+
+// 再生ステージの初期表示は推しを優先する：おすすめ → 推しチャンネルの新着 → 管理人の代表作 → 管理人の新着。
+const stageCandidates = [
+  ...fanPicks.map(pickCard),
+  ...fanShelves.flatMap(({ channel, uploads }) =>
+    uploads.videos.slice(0, 1).map((video) => uploadCard(channel, video)),
+  ),
+  ...(ownerChannel && ownerUploads
+    ? [...ownerPopular, ...ownerUploads.videos].map((video) => uploadCard(ownerChannel, video))
+    : []),
+];
+const stage = stageCandidates[0];
+const withCurrent = <T extends { videoId: string }>(card: T) => ({
+  ...card,
+  current: card.videoId === stage?.videoId,
+});
 
 const fetchedAtFormat = new Intl.DateTimeFormat(locale, {
   dateStyle: 'medium',
@@ -61,6 +120,7 @@ const fetchedAtFormat = new Intl.DateTimeFormat(locale, {
 });
 const countLabel = (count: number) =>
   locale === 'en' && count === 1 ? '1 video' : t.videoCount.replace('{count}', String(count));
+const hasApiData = fanShelves.length > 0 || ownerUploads !== undefined;
 ---
 
 <BaseLayout title={t.videoShelfTitle} description={t.videoShelfDescription}>
@@ -96,13 +156,13 @@ const countLabel = (count: number) =>
           data-stage-frame
         >
           <a
-            href={youtubeWatchUrl(stage.id)}
+            href={youtubeWatchUrl(stage.videoId)}
             class="group absolute inset-0 grid place-items-center"
             data-stage-facade
             aria-label={t.playVideo.replace('{title}', stage.title)}
           >
             <img
-              src={youtubeThumbnailUrl(stage.id, 'hqdefault')}
+              src={youtubeThumbnailUrl(stage.videoId, 'hqdefault')}
               alt=""
               width="480"
               height="360"
@@ -132,7 +192,7 @@ const countLabel = (count: number) =>
               {stage.channelName}
             </a>
             <a
-              href={youtubeWatchUrl(stage.id)}
+              href={youtubeWatchUrl(stage.videoId)}
               class="hover:text-fg underline-offset-4 hover:underline"
               data-stage-watch
             >
@@ -191,6 +251,31 @@ const countLabel = (count: number) =>
             {t.kindNote}
           </p>
         </fieldset>
+        {usedCategories.length > 1 && (
+          <fieldset class="grid gap-2">
+            <legend class="mb-2 text-sm font-semibold">{t.category}</legend>
+            <div class="flex flex-wrap gap-2">
+              {[
+                { id: 'all', label: t.kindAll },
+                ...usedCategories.map((category) => ({
+                  id: category.id,
+                  label: categoryName(category.id),
+                })),
+              ].map(({ id, label }) => (
+                <label class="bg-surface border-muted/30 has-checked:border-accent/70 has-checked:text-accent has-focus-visible:outline-accent inline-flex min-h-11 cursor-pointer items-center rounded-full border px-4 text-sm transition-colors has-focus-visible:outline-2 has-focus-visible:outline-offset-2">
+                  <input
+                    type="radio"
+                    name="video-category"
+                    value={id}
+                    class="sr-only"
+                    checked={id === 'all'}
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        )}
         <p
           id="video-count"
           role="status"
@@ -204,49 +289,37 @@ const countLabel = (count: number) =>
       </div>
     )}
 
-    {picks.length > 0 && (
-      <section aria-labelledby="picks-title" class="mb-12">
+    {fanPicks.length > 0 && (
+      <section aria-labelledby="picks-title" class="mb-12" data-filter-group>
         <div class="mb-4 flex items-baseline justify-between gap-4">
           <h2 id="picks-title" class="text-xl font-semibold">
             {t.picks}
           </h2>
-          <p class="text-muted text-sm">{countLabel(picks.length)}</p>
+          <p class="text-muted text-sm">{countLabel(fanPicks.length)}</p>
         </div>
-        <ul class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-shelf-list>
-          {picks.map((video) => (
-            <VideoCard
-              locale={locale}
-              videoId={video.id}
-              title={video.title}
-              publishedAt={video.publishedAt}
-              thumbnailUrl={youtubeThumbnailUrl(video.id, 'mqdefault')}
-              channelName={video.channelData.name}
-              channelUrl={youtubeChannelUrl(video.channelData.channelId)}
-              kind={video.kind}
-              current={video.id === stage?.id}
-            />
+        <ul class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {fanPicks.map((video) => (
+            <VideoCard {...withCurrent(pickCard(video))} />
           ))}
         </ul>
-        <p class="text-muted text-sm" data-shelf-empty hidden>
-          {t.noMatchingVideos}
-        </p>
       </section>
     )}
 
-    {channelShelves.length > 0 && (
-      <section aria-labelledby="channel-latest-title" class="mb-12 grid gap-8">
+    {fanShelves.length > 0 && (
+      <section aria-labelledby="channel-latest-title" class="mb-12 grid gap-8" data-filter-group>
         <h2 id="channel-latest-title" class="text-xl font-semibold">
           {t.channelLatest}
         </h2>
-        {channelShelves.map(({ channel, uploads }) => (
+        {fanShelves.map(({ channel, uploads }) => (
           <section
             aria-labelledby={`channel-${channel.id}-title`}
-            class="border-muted/20 grid gap-4 border-l-2 pl-4"
+            class="border-muted/20 grid min-w-0 gap-3 border-l-2 pl-4"
+            data-filter-group
           >
             <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
               <h3
                 id={`channel-${channel.id}-title`}
-                class="flex items-baseline gap-2 font-semibold"
+                class="flex flex-wrap items-baseline gap-x-2 gap-y-1 font-semibold"
               >
                 <a
                   href={youtubeChannelUrl(channel.channelId)}
@@ -254,9 +327,9 @@ const countLabel = (count: number) =>
                 >
                   {channel.name}
                 </a>
-                {channel.category && (
-                  <span class="text-warm font-mono text-xs">{channel.category}</span>
-                )}
+                {channel.categories.map((id) => (
+                  <span class="text-warm font-mono text-xs">{categoryName(id)}</span>
+                ))}
               </h3>
               <p class="text-muted text-xs">
                 {t.fetchedAt.replace('{date}', fetchedAtFormat.format(uploads.fetchedAt))}
@@ -267,32 +340,82 @@ const countLabel = (count: number) =>
             ) : uploads.videos.length === 0 ? (
               <p class="text-muted text-sm">{t.noUploads}</p>
             ) : (
-              <>
-                <ul class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-shelf-list>
-                  {uploads.videos.map((video) => (
-                    <VideoCard
-                      locale={locale}
-                      videoId={video.id}
-                      title={video.title}
-                      publishedAt={video.publishedAt}
-                      thumbnailUrl={
-                        video.thumbnailUrl ?? youtubeThumbnailUrl(video.id, 'mqdefault')
-                      }
-                      channelName={channel.name}
-                      channelUrl={youtubeChannelUrl(channel.channelId)}
-                      kind={video.kind}
-                      durationSeconds={video.durationSeconds}
-                      current={video.id === stage?.id}
-                    />
-                  ))}
-                </ul>
-                <p class="text-muted text-sm" data-shelf-empty hidden>
-                  {t.noMatchingVideos}
-                </p>
-              </>
+              <ShelfRow
+                label={t.latestOf.replace('{channel}', channel.name)}
+                items={uploads.videos.map((video) => withCurrent(uploadCard(channel, video)))}
+              />
             )}
           </section>
         ))}
+      </section>
+    )}
+
+    {ownerChannel && ownerUploads && (
+      // 管理人のチャンネルは「おまけ」として、推しチャンネルの後ろに控えめに置く。
+      <section
+        aria-labelledby="owner-corner-title"
+        class="border-warm/25 bg-subtle/60 mb-12 grid min-w-0 gap-6 rounded-xl border p-4 sm:p-6"
+        data-filter-group
+      >
+        <header class="grid gap-1">
+          <p class="text-warm font-mono text-xs tracking-widest">{t.ownerEyebrow}</p>
+          <h2 id="owner-corner-title" class="text-lg font-semibold">
+            {t.ownerCorner}
+          </h2>
+          <p class="text-muted text-sm">
+            {t.ownerNote}
+            <a
+              href={youtubeChannelUrl(ownerChannel.channelId)}
+              class="text-warm hover:text-fg ml-1 underline-offset-4 hover:underline"
+            >
+              {ownerChannel.name}
+            </a>
+          </p>
+        </header>
+        {ownerPopular.length > 0 && (
+          <section aria-labelledby="owner-works-title" class="grid min-w-0 gap-3" data-filter-group>
+            <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+              <h3 id="owner-works-title" class="text-sm font-semibold">
+                {t.ownerWorks}
+              </h3>
+              <p class="text-muted text-xs">{t.ownerWorksNote}</p>
+            </div>
+            <ShelfRow
+              label={t.ownerWorks}
+              variant="compact"
+              items={ownerPopular.map((video) => withCurrent(uploadCard(ownerChannel, video)))}
+            />
+          </section>
+        )}
+        {ownerUploads && (
+          <section
+            aria-labelledby="owner-latest-title"
+            class="grid min-w-0 gap-3"
+            data-filter-group
+          >
+            <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+              <h3 id="owner-latest-title" class="text-sm font-semibold">
+                {t.ownerLatest}
+              </h3>
+              <p class="text-muted text-xs">
+                {t.fetchedAt.replace('{date}', fetchedAtFormat.format(ownerUploads.fetchedAt))}
+              </p>
+            </div>
+            {ownerUploads.status === 'error' ? (
+              <p class="text-muted text-sm">{t.fetchFailed}</p>
+            ) : ownerUploads.videos.length === 0 ? (
+              <p class="text-muted text-sm">{t.noUploads}</p>
+            ) : (
+              <ShelfRow
+                label={t.ownerLatest}
+                variant="compact"
+                items={ownerUploads.videos.map((video) =>
+                  withCurrent(uploadCard(ownerChannel, video)),
+                )}
+              />
+            )}
+          </section>
+        )}
       </section>
     )}
 
@@ -302,16 +425,20 @@ const countLabel = (count: number) =>
           {t.registeredChannels}
         </h2>
         <ul class="flex flex-wrap gap-2">
-          {activeChannels.map((channel) => (
+          {[...fanChannels, ...(ownerChannel ? [ownerChannel] : [])].map((channel) => (
             <li>
               <a
                 href={youtubeChannelUrl(channel.channelId)}
-                class="bg-surface border-muted/25 hover:border-accent/60 inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm transition-colors"
+                class:list={[
+                  'bg-surface hover:border-accent/60 inline-flex min-h-11 flex-wrap items-center gap-x-2 rounded-full border px-4 text-sm transition-colors',
+                  channel.owner ? 'border-warm/40' : 'border-muted/25',
+                ]}
               >
                 {channel.name}
-                {channel.category && (
-                  <span class="text-warm font-mono text-xs">{channel.category}</span>
-                )}
+                {channel.owner && <span class="text-warm text-xs">{t.ownerBadge}</span>}
+                {channel.categories.map((id) => (
+                  <span class="text-warm font-mono text-xs">{categoryName(id)}</span>
+                ))}
               </a>
             </li>
           ))}
@@ -321,7 +448,7 @@ const countLabel = (count: number) =>
 
     <footer class="border-muted/20 text-muted grid gap-2 border-t pt-6 text-xs">
       <p>{t.playerNotice}</p>
-      {channelShelves.length > 0 && <p>{t.apiNotice}</p>}
+      {hasApiData && <p>{t.apiNotice}</p>}
       <p class="flex flex-wrap gap-x-4 gap-y-1">
         <a
           href="https://www.youtube.com/t/terms"
@@ -346,6 +473,7 @@ const countLabel = (count: number) =>
   import {
     VIDEO_ID_PATTERN,
     VIDEO_KINDS,
+    isFilterActive,
     matchesVideoFilter,
     normalizeSearchText,
     parseSearchTerms,
@@ -415,43 +543,58 @@ const countLabel = (count: number) =>
     });
   }
 
-  // タイトル・チャンネル名での検索と、種別での絞り込み。
+  // タイトル・チャンネル名での検索と、種別・カテゴリでの絞り込み。
   const filter = document.querySelector<HTMLElement>('#video-filter');
   const query = document.querySelector<HTMLInputElement>('#video-query');
   const count = document.querySelector<HTMLElement>('#video-count');
   const kindInputs = Array.from(
     document.querySelectorAll<HTMLInputElement>('input[name="video-kind"]'),
   );
+  const categoryInputs = Array.from(
+    document.querySelectorAll<HTMLInputElement>('input[name="video-category"]'),
+  );
   const isVideoKind = (value: string | undefined): value is VideoKind =>
     VIDEO_KINDS.some((kind) => kind === value);
   const items = Array.from(document.querySelectorAll<HTMLElement>('[data-video-item]'), (item) => ({
     item,
     videoId: item.querySelector<HTMLElement>('[data-video-card]')?.dataset.videoId ?? '',
-    search: normalizeSearchText(item.dataset.search ?? ''),
-    kind: isVideoKind(item.dataset.kind) ? item.dataset.kind : undefined,
+    target: {
+      searchText: normalizeSearchText(item.dataset.search ?? ''),
+      kind: isVideoKind(item.dataset.kind) ? item.dataset.kind : undefined,
+      categories: (item.dataset.categories ?? '').split(' ').filter(Boolean),
+    },
   }));
-  const lists = Array.from(document.querySelectorAll<HTMLElement>('[data-shelf-list]'));
+  // 内側のまとまりから先に判定するため、文書順の逆に並べる。
+  const groups = Array.from(
+    document.querySelectorAll<HTMLElement>('[data-filter-group]'),
+  ).reverse();
 
   if (filter && query && count && items.length > 0) {
     const updateResults = () => {
-      const selected = kindInputs.find((input) => input.checked)?.value;
-      const kind = isVideoKind(selected) ? selected : 'all';
-      const terms = parseSearchTerms(query.value);
+      const selectedKind = kindInputs.find((input) => input.checked)?.value;
+      const videoFilter = {
+        terms: parseSearchTerms(query.value),
+        kind: isVideoKind(selectedKind) ? selectedKind : ('all' as const),
+        category: categoryInputs.find((input) => input.checked)?.value ?? 'all',
+      };
       // おすすめと新着の両方にある動画は1本として数える。
       const matched = new Set<string>();
       for (const entry of items) {
-        entry.item.hidden = !matchesVideoFilter(entry.search, entry.kind, { terms, kind });
+        entry.item.hidden = !matchesVideoFilter(entry.target, videoFilter);
         if (!entry.item.hidden) matched.add(entry.videoId);
       }
-      for (const list of lists) {
-        const empty = !Array.from(list.children).some(
-          (child) => child instanceof HTMLElement && !child.hidden,
-        );
-        list.hidden = empty;
-        const message = list.nextElementSibling;
-        if (message instanceof HTMLElement && message.hasAttribute('data-shelf-empty')) {
-          message.hidden = !empty;
-        }
+      // 絞り込み中は、該当する動画が1本もない棚（取得失敗などの棚を含む）を隠す。
+      const active = isFilterActive(videoFilter);
+      for (const group of groups) group.hidden = false;
+      for (const group of groups) {
+        group.hidden =
+          active &&
+          !items.some(
+            ({ item }) =>
+              !item.hidden &&
+              group.contains(item) &&
+              item.parentElement?.closest('[data-filter-group][hidden]') === null,
+          );
       }
       count.textContent =
         (matched.size === 0
@@ -464,7 +607,9 @@ const countLabel = (count: number) =>
     filter.hidden = false;
     updateResults();
     query.addEventListener('input', updateResults);
-    for (const input of kindInputs) input.addEventListener('change', updateResults);
+    for (const input of [...kindInputs, ...categoryInputs]) {
+      input.addEventListener('change', updateResults);
+    }
     // ブラウザの「戻る」で入力内容が復元された場合にも結果を合わせる。
     window.addEventListener('pageshow', updateResults);
   }
