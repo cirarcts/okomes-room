@@ -5,7 +5,7 @@ import { z } from 'astro/zod';
 import videoChannelsJson from './content/video-shelf/channels.json';
 import { EFFECT_CATEGORIES } from './lib/kemperEffectCategories';
 import { CHANNEL_ID_PATTERN, VIDEO_ID_PATTERN, VIDEO_KINDS } from './lib/videoShelf';
-import { fetchChannelUploads } from './lib/youtubeUploads';
+import { MAX_UPLOADS_PER_KIND, fetchChannelUploads } from './lib/youtubeUploads';
 
 const setting = z.object({
   label: z.string().min(1),
@@ -93,6 +93,8 @@ const videoChannel = z.object({
   // 管理人自身のチャンネル。推しチャンネルとは分けて、ページ下部の専用コーナーに表示する（1つまで）。
   owner: z.boolean().default(false),
   enabled: z.boolean().default(true),
+  // 種類（動画・ショート・ライブ）ごとに取得する直近の動画数。省略時は既定値（100本）。
+  uploadsPerKind: z.number().int().min(1).max(MAX_UPLOADS_PER_KIND).optional(),
   // YouTubeのチャンネルタブで確認した分類。自動判定より優先する。
   videoKinds: z
     .record(z.string().regex(VIDEO_ID_PATTERN), z.enum(['regular', 'shorts', 'live']))

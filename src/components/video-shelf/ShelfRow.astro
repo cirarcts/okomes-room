@@ -13,13 +13,17 @@ interface Props {
   label: string;
   items: Omit<CardProps, 'variant'>[];
   variant?: 'shelf' | 'compact';
-  /** 指定時はこの件数だけ先に見せ、残りをボタンで展開する。 */
+  /** 指定時はこの件数だけ先に見せ、残りをボタンで少しずつ展開する。 */
   initialCount?: number;
+  /** 棚の続きを見られるYouTubeのページ。棚の動画をすべて並べたときに表示する。 */
+  more?: { href: string; text: string; label: string };
 }
 
-const { queueId, label, items, variant = 'shelf', initialCount = items.length } = Astro.props;
+const { queueId, label, items, variant = 'shelf', initialCount = items.length, more } = Astro.props;
 const t = items[0] && messages[items[0].locale];
 const id = `queue-${queueId}`;
+const remaining = items.length - initialCount;
+const showOlder = t?.showOlder.replace('{count}', String(remaining)) ?? '';
 ---
 
 {/* 横スクロールの棚。カードのリンクにフォーカスすると、ブラウザが表示位置まで自動でスクロールする。 */}
@@ -34,19 +38,36 @@ const id = `queue-${queueId}`;
     <VideoCard {...item} older={index >= initialCount} variant={variant} />
   ))}
 </ul>
-{t && items.length > initialCount && (
-  <button
-    type="button"
-    class="bg-surface border-muted/25 hover:border-accent/60 w-fit min-h-11 rounded-full border px-4 text-sm"
-    aria-controls={id}
-    aria-expanded="false"
-    aria-label={`${t.showOlder} · ${label}`}
-    data-expand-shelf
-    data-label={label}
-    data-show={t.showOlder}
-    data-hide={t.hideOlder}
-    hidden
-  >
-    {t.showOlder}
-  </button>
+{t && (remaining > 0 || more) && (
+  <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+    {remaining > 0 && (
+      // 押すたびに少しずつ並べ、すべて並べた後は「閉じる」に変わる（ページ内のスクリプトが切り替える）。
+      <button
+        type="button"
+        class="bg-surface border-muted/25 hover:border-accent/60 w-fit min-h-11 rounded-full border px-4 text-sm"
+        aria-controls={id}
+        aria-expanded="false"
+        aria-label={`${showOlder} · ${label}`}
+        data-expand-shelf
+        data-label={label}
+        data-show={t.showOlder}
+        data-hide={t.hideOlder}
+        data-initial={initialCount}
+        data-total={items.length}
+        hidden
+      >
+        {showOlder}
+      </button>
+    )}
+    {more && (
+      <a
+        href={more.href}
+        class="text-accent hover:text-fg inline-flex min-h-11 w-fit items-center gap-1 text-sm underline-offset-4 hover:underline"
+        aria-label={more.label}
+        data-shelf-more
+      >
+        {more.text} <span aria-hidden="true">↗</span>
+      </a>
+    )}
+  </div>
 )}

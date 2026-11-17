@@ -182,6 +182,24 @@ export function youtubeWatchUrl(videoId: string): string {
   return `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`;
 }
 
+/** 棚に最初から並べる本数。 */
+export const SHELF_INITIAL_COUNT = 4;
+/** 「過去の動画を見る」1回で追加する本数。 */
+export const SHELF_STEP = 12;
+
+/**
+ * 「過去の動画を見る」を押した後に棚へ並べる本数を返す。
+ * 残りがあれば `step` 本ずつ増やし、すべて並べた後に押された場合は最初の本数に戻す。
+ */
+export function nextShelfCount(
+  visible: number,
+  total: number,
+  initial: number,
+  step: number = SHELF_STEP,
+): number {
+  return visible >= total ? Math.min(initial, total) : Math.min(visible + step, total);
+}
+
 export function youtubeChannelUrl(channelId: string): string {
   return `https://www.youtube.com/channel/${encodeURIComponent(channelId)}`;
 }

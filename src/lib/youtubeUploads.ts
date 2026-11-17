@@ -8,8 +8,12 @@ import { z } from 'astro/zod';
 import { VIDEO_ID_PATTERN, parseIsoDuration, type VideoKind } from './videoShelf';
 
 const API_BASE_URL = 'https://www.googleapis.com/youtube/v3/';
-/** 1チャンネルあたりに取得する直近のアップロード候補数。 */
-const UPLOADS_PER_CHANNEL = 50;
+/** `playlistItems.list` が1回で返す件数の上限。 */
+const PLAYLIST_PAGE_SIZE = 50;
+/** 種類（動画・ショート・ライブ）ごとに取得する直近の動画数の既定値。チャンネルごとに変更できる。 */
+export const DEFAULT_UPLOADS_PER_KIND = 100;
+/** 種類ごとの取得数として指定できる上限。ページの大きさとAPIの使用量を抑えるために設ける。 */
+export const MAX_UPLOADS_PER_KIND = 500;
 /** `id` に複数指定できる上限。 */
 const MAX_IDS_PER_REQUEST = 50;
 /** 管理人チャンネルの代表作として表示する、視聴回数の上位の件数。 */
@@ -43,6 +47,8 @@ export interface UploadsChannel {
   channelId: string;
   /** 管理人のチャンネル。全動画を取得し、視聴回数の上位を代表作として返す。 */
   owner?: boolean;
+  /** 種類ごとに取得する直近の動画数。省略時は `DEFAULT_UPLOADS_PER_KIND`。 */
+  uploadsPerKind?: number;
   /** YouTubeで確認した種類。直近の取得範囲外でも動画の詳細を取得する。 */
   videoKinds?: Readonly<Partial<Record<string, VideoKind>>>;
 }
@@ -232,12 +238,19 @@ function createClient(apiKey: string, fetchFn: FetchLike) {
   };
 }
 
+/** 種類ごとに取得する動画数。範囲外の指定は上限・下限に丸める。 */
+function uploadsLimit(channel: UploadsChannel): number {
+  const limit = channel.uploadsPerKind ?? DEFAULT_UPLOADS_PER_KIND;
+  return Math.min(Math.max(Math.trunc(limit), 1), MAX_UPLOADS_PER_KIND);
+}
+
 /**
  * 各チャンネルの新着を取得する。外部サービスの障害でビルドを止めないよう例外は投げず、
  * 取得できなかったチャンネルは `status: 'error'` として返す。
  *
- * 使用量の目安：channels.list 1 + playlistItems.list（チャンネル数 × 3種類）+ videos.list（50件ごとに1）ユニット。
- * 種類別に取得できなかったチャンネルは、アップロード再生リストの取得で1ユニット増える。
+ * 使用量の目安：channels.list 1 + playlistItems.list（チャンネル数 × 3種類 × ページ数）+ videos.list（50件ごとに1）ユニット。
+ * ページ数は種類ごとの取得数を50で割って切り上げた値（既定の100本なら最大2ページ）。
+ * 種類別に取得できなかったチャンネルは、アップロード再生リストの取得でその分増える。
  * 管理人のチャンネルは全動画を50件ずつ取得するため、さらに動画50件ごとに約2ユニット増える。
  */
 export async function fetchChannelUploads(
@@ -277,21 +290,30 @@ export async function fetchChannelUploads(
     return channels.map(failed);
   }
 
-  /** 再生リストの動画IDを、先頭から指定したページ数まで取得する。 */
+  /**
+   * 再生リストの動画IDを、先頭から指定したページ数まで取得する。
+   * 2ページ目以降で失敗した場合は、取得できたページまでを返す（新しい動画の表示を優先する）。
+   */
   const listPlaylistVideoIds = async (playlistId: string, pages: number): Promise<string[]> => {
     const ids: string[] = [];
     let pageToken: string | undefined;
     for (let page = 0; page < pages; page++) {
-      const result = await request(
-        'playlistItems',
-        {
-          part: 'contentDetails',
-          playlistId,
-          maxResults: String(UPLOADS_PER_CHANNEL),
-          ...(pageToken ? { pageToken } : {}),
-        },
-        playlistItemsResponse,
-      );
+      let result: z.infer<typeof playlistItemsResponse>;
+      try {
+        result = await request(
+          'playlistItems',
+          {
+            part: 'contentDetails',
+            playlistId,
+            maxResults: String(PLAYLIST_PAGE_SIZE),
+            ...(pageToken ? { pageToken } : {}),
+          },
+          playlistItemsResponse,
+        );
+      } catch (error) {
+        if (page === 0) throw error;
+        break;
+      }
       ids.push(...result.items.map((item) => item.contentDetails.videoId));
       pageToken = result.nextPageToken;
       if (!pageToken) break;
@@ -327,7 +349,9 @@ export async function fetchChannelUploads(
   for (const channel of channels) {
     const playlistId = uploadsPlaylists.get(channel.channelId);
     if (!playlistId) continue;
-    const pages = channel.owner ? MAX_OWNER_PAGES : 1;
+    const pages = channel.owner
+      ? MAX_OWNER_PAGES
+      : Math.ceil(uploadsLimit(channel) / PLAYLIST_PAGE_SIZE);
     try {
       const kinds = await listKindPlaylists(channel.channelId, pages);
       sourcesByChannel.set(
@@ -370,6 +394,7 @@ export async function fetchChannelUploads(
     const source = sourcesByChannel.get(channel.id);
     if (!source) return failed(channel);
     const { ids, kinds } = source;
+    const limit = uploadsLimit(channel);
     const convert = (video: ApiVideo) => toUploadVideo(video, kinds?.get(video.id));
     const isChannelVideo = (video: ApiVideo | undefined): video is ApiVideo =>
       video !== undefined && video.snippet.channelId === channel.channelId && isPlayable(video);
@@ -383,9 +408,9 @@ export async function fetchChannelUploads(
     // 配信の多いチャンネルでも投稿動画やShortsが埋もれないよう、種類ごとに件数を区切る。
     const recent = kinds
       ? KIND_PLAYLISTS.flatMap(({ kind }) =>
-          sorted.filter((video) => kinds.get(video.id) === kind).slice(0, UPLOADS_PER_CHANNEL),
+          sorted.filter((video) => kinds.get(video.id) === kind).slice(0, limit),
         )
-      : sorted.slice(0, UPLOADS_PER_CHANNEL);
+      : sorted.slice(0, limit);
     const confirmed = Array.from(videoKinds.keys(), (id) => details.get(id))
       .filter(isChannelVideo)
       .map(convert);

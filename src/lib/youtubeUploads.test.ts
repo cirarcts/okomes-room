@@ -318,12 +318,15 @@ describe('pickPopular', () => {
 describe('管理人のチャンネル', () => {
   // 15本の動画を、2ページ（10本＋5本）に分けて返す架空のAPI。
   const ids = Array.from({ length: 15 }, (_, index) => `owner${String(index).padStart(6, '0')}`);
-  function ownerFetch() {
+  function ownerFetch({ failSecondPage = false } = {}) {
     const calls: URL[] = [];
     const fetchFn: FetchLike = async (input) => {
       const url = new URL(input);
       calls.push(url);
       const endpoint = url.pathname.split('/').at(-1);
+      if (failSecondPage && url.searchParams.get('pageToken') === 'p2') {
+        return new Response('{}', { status: 500 });
+      }
       if (endpoint === 'channels') {
         return Response.json({
           items: [{ id: CHANNEL_A, contentDetails: { relatedPlaylists: { uploads: 'UUa' } } }],
@@ -382,7 +385,7 @@ describe('管理人のチャンネル', () => {
     ]);
   });
 
-  it('推しチャンネルは1ページだけ取得し、代表作を返さない', async () => {
+  it('推しチャンネルは既定で2ページ（100本）まで取得し、代表作を返さない', async () => {
     const { fetchFn, calls } = ownerFetch();
     const [fan] = await fetchChannelUploads(
       [{ id: 'fan', channelId: CHANNEL_A }],
@@ -391,9 +394,56 @@ describe('管理人のチャンネル', () => {
       NOW,
     );
     const playlistCalls = uploadsCalls(calls);
-    expect(playlistCalls).toHaveLength(1);
+    expect(playlistCalls).toHaveLength(2);
     expect(playlistCalls[0].searchParams.get('maxResults')).toBe('50');
+    expect(fan.videos).toHaveLength(15);
     expect(fan).not.toHaveProperty('popular');
+  });
+
+  it('取得数を50本以下にしたチャンネルは1ページだけ取得する', async () => {
+    const { fetchFn, calls } = ownerFetch();
+    const [fan] = await fetchChannelUploads(
+      [{ id: 'fan', channelId: CHANNEL_A, uploadsPerKind: 50 }],
+      'test-key',
+      fetchFn,
+      NOW,
+    );
+    expect(uploadsCalls(calls)).toHaveLength(1);
+    expect(fan.videos).toHaveLength(10);
+  });
+
+  it('取得数に合わせて必要なページ数だけ取得し、指定した本数で打ち切る', async () => {
+    const { fetchFn, calls } = ownerFetch();
+    const [fan] = await fetchChannelUploads(
+      [{ id: 'fan', channelId: CHANNEL_A, uploadsPerKind: 12 }],
+      'test-key',
+      fetchFn,
+      NOW,
+    );
+    expect(uploadsCalls(calls)).toHaveLength(1);
+    expect(fan.videos).toHaveLength(10);
+
+    const second = ownerFetch();
+    const [more] = await fetchChannelUploads(
+      [{ id: 'fan', channelId: CHANNEL_A, uploadsPerKind: 51 }],
+      'test-key',
+      second.fetchFn,
+      NOW,
+    );
+    expect(uploadsCalls(second.calls)).toHaveLength(2);
+    expect(more.videos).toHaveLength(15);
+  });
+
+  it('2ページ目以降の取得に失敗しても、取得できたページまでを表示する', async () => {
+    const { fetchFn } = ownerFetch({ failSecondPage: true });
+    const [fan] = await fetchChannelUploads(
+      [{ id: 'fan', channelId: CHANNEL_A }],
+      'test-key',
+      fetchFn,
+      NOW,
+    );
+    expect(fan.status).toBe('ok');
+    expect(fan.videos.map((video) => video.id).sort()).toEqual(ids.slice(0, 10));
   });
 
   it('確認済みの分類を優先し、直近の取得範囲外の公開動画を追加する', async () => {
@@ -543,9 +593,9 @@ describe('種類別の再生リスト', () => {
     ]);
   });
 
-  it('種類ごとに直近50本までを残す', async () => {
+  it('種類ごとに、既定では直近100本・指定があればその本数までを残す', async () => {
     const streams = Array.from(
-      { length: 60 },
+      { length: 120 },
       (_, index) => `live${String(index).padStart(7, '0')}`,
     );
     const { fetchFn } = mockFetch({
@@ -553,13 +603,24 @@ describe('種類別の再生リスト', () => {
       playlistItems: { [LF]: [clip], [SH]: [shorts], [LV]: streams },
       videos: [
         ...videos,
-        // 投稿動画やShortsより新しい配信が60本ある
+        // 投稿動画やShortsより新しい配信が120本ある
         ...streams.map((id) => apiVideo(id, { snippet: { publishedAt: '2026-11-10T00:00:00Z' } })),
       ],
     });
-    const [alpha] = await fetchChannelUploads([channels[0]], 'test-key', fetchFn, NOW);
-    const count = (kind: string) => alpha.videos.filter((video) => video.kind === kind).length;
-    expect([count('live'), count('regular'), count('shorts')]).toEqual([50, 1, 1]);
+    const counts = async (uploadsPerKind?: number) => {
+      const [alpha] = await fetchChannelUploads(
+        [{ ...channels[0], uploadsPerKind }],
+        'test-key',
+        fetchFn,
+        NOW,
+      );
+      const count = (kind: string) => alpha.videos.filter((video) => video.kind === kind).length;
+      return [count('live'), count('regular'), count('shorts')];
+    };
+    expect(await counts()).toEqual([100, 1, 1]);
+    expect(await counts(30)).toEqual([30, 1, 1]);
+    // 範囲外の指定は丸める
+    expect(await counts(0)).toEqual([1, 1, 1]);
   });
 
   it('手動で指定した分類は、再生リストの分類より優先する', async () => {
