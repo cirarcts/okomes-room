@@ -3,7 +3,7 @@ import type { ComponentProps } from 'astro/types';
 
 import type { Locale } from '../../lib/locale';
 import { messages } from '../../lib/messages';
-import { youtubeChannelUrl, type ShelfChannel } from '../../lib/videoShelf';
+import { SHELF_INITIAL_COUNT, youtubeChannelUrl, type ShelfChannel } from '../../lib/videoShelf';
 import ShelfRow from './ShelfRow.astro';
 
 interface Props {
@@ -15,18 +15,33 @@ interface Props {
 
 const { channel, locale, items, variant } = Astro.props;
 const t = messages[locale];
+// `tab` はYouTubeのチャンネルページのタブ。棚の続き（取得範囲より古い動画）を見る先として案内する。
 const rows = [
   {
     id: 'uploads',
     title: t.uploadVideos,
+    tab: 'videos',
+    moreText: t.openChannelVideos,
     items: items.filter(({ kind }) => kind !== 'live' && kind !== 'shorts'),
   },
-  { id: 'archives', title: t.uploadArchives, items: items.filter(({ kind }) => kind === 'live') },
-  { id: 'shorts', title: 'Shorts', items: items.filter(({ kind }) => kind === 'shorts') },
+  {
+    id: 'archives',
+    title: t.uploadArchives,
+    tab: 'streams',
+    moreText: t.openChannelStreams,
+    items: items.filter(({ kind }) => kind === 'live'),
+  },
+  {
+    id: 'shorts',
+    title: 'Shorts',
+    tab: 'shorts',
+    moreText: t.openChannelShorts,
+    items: items.filter(({ kind }) => kind === 'shorts'),
+  },
 ];
 ---
 
-{rows.map(({ id, title, items }) => {
+{rows.map(({ id, title, tab, moreText, items }) => {
   if (items.length === 0) return null;
   const rowId = `${channel.id}-${id}`;
   const label = `${channel.name} · ${title}`;
@@ -35,16 +50,18 @@ const rows = [
       <h4 id={`${rowId}-heading`} class="text-muted text-sm font-semibold">
         {title}
       </h4>
-      <ShelfRow queueId={rowId} label={label} items={items} variant={variant} initialCount={4} />
-      {id === 'shorts' && (
-        <a
-          href={`${youtubeChannelUrl(channel.channelId)}/shorts`}
-          class="text-accent hover:text-fg inline-flex min-h-11 w-fit items-center gap-1 text-sm underline-offset-4 hover:underline"
-          aria-label={`${t.openChannelShorts} · ${channel.name}`}
-        >
-          {t.openChannelShorts} <span aria-hidden="true">↗</span>
-        </a>
-      )}
+      <ShelfRow
+        queueId={rowId}
+        label={label}
+        items={items}
+        variant={variant}
+        initialCount={SHELF_INITIAL_COUNT}
+        more={{
+          href: `${youtubeChannelUrl(channel.channelId)}/${tab}`,
+          text: moreText,
+          label: `${moreText} · ${channel.name}`,
+        }}
+      />
     </section>
   );
 })}

@@ -19,6 +19,7 @@ import {
   youtubeWatchUrl,
   type ShelfChannel,
   type ShelfVideo,
+  nextShelfCount,
 } from './videoShelf';
 
 // テスト用の架空データ（実在のIDではない）
@@ -263,5 +264,27 @@ describe('formatViewCount', () => {
     expect(formatViewCount(12_345, 'ja')).toBe('1.2万');
     expect(formatViewCount(12_345, 'en')).toBe('12.3K');
     expect(formatViewCount(1_500_000, 'en')).toBe('1.5M');
+  });
+});
+
+describe('nextShelfCount', () => {
+  it('残りがあれば12本ずつ増やし、総数を超えない', () => {
+    expect(nextShelfCount(4, 100, 4)).toBe(16);
+    expect(nextShelfCount(16, 100, 4)).toBe(28);
+    expect(nextShelfCount(88, 100, 4)).toBe(100);
+    expect(nextShelfCount(4, 10, 4)).toBe(10);
+  });
+
+  it('すべて並べた後は最初の本数に戻す', () => {
+    expect(nextShelfCount(100, 100, 4)).toBe(4);
+    expect(nextShelfCount(10, 10, 4)).toBe(4);
+  });
+
+  it('増やす本数を指定できる', () => {
+    expect(nextShelfCount(4, 100, 4, 5)).toBe(9);
+  });
+
+  it('総数が最初の本数以下なら総数のまま', () => {
+    expect(nextShelfCount(3, 3, 4)).toBe(3);
   });
 });

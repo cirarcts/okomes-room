@@ -474,6 +474,7 @@ const hasApiData = uploadsById.size > 0;
     VIDEO_KINDS,
     isFilterActive,
     matchesVideoFilter,
+    nextShelfCount,
     normalizeSearchText,
     parseSearchTerms,
     type VideoKind,
@@ -500,9 +501,15 @@ const hasApiData = uploadsById.size > 0;
       button,
     ]),
   );
+  // 棚ごとに、いま並べている本数を持つ（最初は data-initial の本数）。
+  const shelfCounts = new Map(
+    Array.from(disclosures.values(), (button) => [button, Number(button.dataset.initial)]),
+  );
   const items = Array.from(document.querySelectorAll<HTMLElement>('[data-video-item]'), (item) => ({
     item,
     videoId: item.querySelector<HTMLElement>('[data-video-card]')?.dataset.videoId ?? '',
+    // 棚の中での並び順（0始まり）
+    index: Array.prototype.indexOf.call(item.parentElement?.children ?? [], item),
     disclosure: item.hasAttribute('data-older-video')
       ? disclosures.get(item.parentElement?.id ?? '')
       : undefined,
@@ -526,11 +533,19 @@ const hasApiData = uploadsById.size > 0;
         category: categoryInputs.find((input) => input.checked)?.value ?? 'all',
       };
       const active = isFilterActive(videoFilter);
-      for (const button of disclosures.values()) button.hidden = active;
+      for (const button of disclosures.values()) {
+        button.hidden = active;
+        // YouTubeへの案内は、棚の動画をすべて並べたとき（絞り込み中を含む）に表示する。
+        const more = button.parentElement?.querySelector<HTMLElement>('[data-shelf-more]');
+        if (more) {
+          more.hidden = !active && (shelfCounts.get(button) ?? 0) < Number(button.dataset.total);
+        }
+      }
       // おすすめと新着の両方にある動画は1本として数える。
       const matched = new Set<string>();
       for (const entry of items) {
-        const collapsed = entry.disclosure?.getAttribute('aria-expanded') === 'false';
+        const collapsed =
+          entry.disclosure !== undefined && entry.index >= (shelfCounts.get(entry.disclosure) ?? 0);
         const matches = matchesVideoFilter(entry.target, videoFilter);
         // 折りたたみで隠れているだけの動画は再生の対象に残すため、絞り込みで外れた動画には別の印を付ける。
         entry.item.toggleAttribute('data-filtered-out', !matches);
@@ -567,12 +582,30 @@ const hasApiData = uploadsById.size > 0;
     }
     for (const button of disclosures.values()) {
       button.addEventListener('click', () => {
-        const expanded = button.getAttribute('aria-expanded') === 'true';
-        const label = (expanded ? button.dataset.show : button.dataset.hide) ?? '';
-        button.setAttribute('aria-expanded', String(!expanded));
+        const initial = Number(button.dataset.initial);
+        const total = Number(button.dataset.total);
+        const previous = shelfCounts.get(button) ?? initial;
+        const visible = nextShelfCount(previous, total, initial);
+        shelfCounts.set(button, visible);
+        const label =
+          (visible < total
+            ? button.dataset.show?.replace('{count}', String(total - visible))
+            : button.dataset.hide) ?? '';
+        button.setAttribute('aria-expanded', String(visible > initial));
         button.setAttribute('aria-label', `${label} · ${button.dataset.label ?? ''}`);
         button.textContent = label;
         updateResults();
+
+        // 追加した先頭のカードを棚の左端へ寄せ、増えたことが分かるようにする（閉じたときは先頭へ戻す）。
+        const list = document.getElementById(button.getAttribute('aria-controls') ?? '');
+        const first = list?.children[visible > previous ? previous : 0];
+        if (list && first) {
+          const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          list.scrollBy({
+            left: first.getBoundingClientRect().left - list.getBoundingClientRect().left,
+            behavior: reduceMotion ? 'auto' : 'smooth',
+          });
+        }
       });
     }
     // ブラウザの「戻る」で入力内容が復元された場合にも結果を合わせる。
