@@ -5,7 +5,7 @@
  */
 import { z } from 'astro/zod';
 
-import { VIDEO_ID_PATTERN, classifyVideo, parseIsoDuration, type VideoKind } from './videoShelf';
+import { VIDEO_ID_PATTERN, parseIsoDuration, type VideoKind } from './videoShelf';
 
 const API_BASE_URL = 'https://www.googleapis.com/youtube/v3/';
 /** 1チャンネルあたりに取得する直近のアップロード候補数。 */
@@ -17,6 +17,23 @@ export const POPULAR_COUNT = 5;
 /** 管理人チャンネルの全動画を取得するときのページ数の上限（50件 × 20ページ = 1,000件）。 */
 const MAX_OWNER_PAGES = 20;
 const REQUEST_TIMEOUT_MS = 10_000;
+
+/**
+ * YouTubeの「動画」「ショート」「ライブ」タブと同じ中身を返す、種類別の再生リスト。
+ * チャンネルID（`UC…`）の先頭2文字を置き換えるとその再生リストのIDになる。
+ * 公式には文書化されていないため、使えない場合はアップロード再生リスト（`UU…`）と公式データからの推定に戻す。
+ */
+const KIND_PLAYLISTS = [
+  { prefix: 'UULF', kind: 'regular' },
+  { prefix: 'UUSH', kind: 'shorts' },
+  { prefix: 'UULV', kind: 'live' },
+] as const;
+/** 種類別の再生リストで確認できた、YouTube上の分類。 */
+export type PlaylistKind = (typeof KIND_PLAYLISTS)[number]['kind'];
+
+export function kindPlaylistId(channelId: string, prefix: string): string {
+  return `${prefix}${channelId.slice(2)}`;
+}
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
@@ -47,7 +64,7 @@ export interface ChannelUploads {
   status: 'ok' | 'error';
   /** ISO 8601 */
   fetchedAt: string;
-  /** 新着（公開日の新しい順） */
+  /** 新着（公開日の新しい順）。種類別に取得できた場合は、種類ごとに直近の動画を含む。 */
   videos: UploadVideo[];
   /** 視聴回数の多い順の代表作（管理人のチャンネルのみ） */
   popular?: UploadVideo[];
@@ -96,9 +113,13 @@ const videosResponse = z.object({ items: z.array(apiVideo).default([]) });
 
 /** 応答にAPIキーを含めないよう、エンドポイント名とHTTPステータスだけを持つ。 */
 export class YouTubeApiError extends Error {
-  constructor(endpoint: string, detail: string) {
+  /** HTTPステータス（応答を受け取れた場合のみ） */
+  readonly status?: number;
+
+  constructor(endpoint: string, detail: string, status?: number) {
     super(`YouTube Data API (${endpoint}) の取得に失敗しました: ${detail}`);
     this.name = 'YouTubeApiError';
+    this.status = status;
   }
 }
 
@@ -129,7 +150,16 @@ function pickThumbnail(video: ApiVideo): string | undefined {
   }
 }
 
-export function toUploadVideo(video: ApiVideo): UploadVideo {
+/**
+ * 種別を決める。種類別の再生リストで確認できた分類があれば、それをそのまま使う
+ * （「動画」タブのプレミア公開作品は `liveStreamingDetails` を持つが、配信として扱わない）。
+ * 確認できない場合は、公式データの `liveStreamingDetails` の有無だけで分ける。
+ */
+function resolveKind(video: ApiVideo, playlistKind: PlaylistKind | undefined): VideoKind {
+  return playlistKind ?? (video.liveStreamingDetails !== undefined ? 'live' : 'regular');
+}
+
+export function toUploadVideo(video: ApiVideo, playlistKind?: PlaylistKind): UploadVideo {
   const thumbnailUrl = pickThumbnail(video);
   const duration = video.contentDetails?.duration;
   const durationSeconds = duration ? parseIsoDuration(duration) : undefined;
@@ -139,10 +169,7 @@ export function toUploadVideo(video: ApiVideo): UploadVideo {
     title: video.snippet.title,
     publishedAt: new Date(video.snippet.publishedAt).toISOString(),
     ...(thumbnailUrl ? { thumbnailUrl } : {}),
-    kind: classifyVideo({
-      durationSeconds,
-      hasLiveStreamingDetails: video.liveStreamingDetails !== undefined,
-    }),
+    kind: resolveKind(video, playlistKind),
     ...(durationSeconds !== undefined ? { durationSeconds } : {}),
   };
 }
@@ -154,11 +181,15 @@ export function viewCountOf(video: ApiVideo): number | undefined {
 }
 
 /** 視聴回数の多い順に上位を選ぶ（視聴回数が不明な動画は除く）。同数なら新しい順。 */
-export function pickPopular(videos: readonly ApiVideo[], count: number): UploadVideo[] {
+export function pickPopular(
+  videos: readonly ApiVideo[],
+  count: number,
+  convert: (video: ApiVideo) => UploadVideo = (video) => toUploadVideo(video),
+): UploadVideo[] {
   return videos
     .flatMap((video) => {
       const viewCount = viewCountOf(video);
-      return viewCount === undefined ? [] : [{ ...toUploadVideo(video), viewCount }];
+      return viewCount === undefined ? [] : [{ ...convert(video), viewCount }];
     })
     .sort((a, b) => b.viewCount - a.viewCount || b.publishedAt.localeCompare(a.publishedAt))
     .slice(0, count);
@@ -191,7 +222,9 @@ function createClient(apiKey: string, fetchFn: FetchLike) {
     } catch (error) {
       throw new YouTubeApiError(endpoint, error instanceof Error ? error.name : 'network error');
     }
-    if (!response.ok) throw new YouTubeApiError(endpoint, `HTTP ${response.status}`);
+    if (!response.ok) {
+      throw new YouTubeApiError(endpoint, `HTTP ${response.status}`, response.status);
+    }
 
     const parsed = schema.safeParse(await response.json().catch(() => undefined));
     if (!parsed.success) throw new YouTubeApiError(endpoint, '想定外の応答形式');
@@ -203,7 +236,8 @@ function createClient(apiKey: string, fetchFn: FetchLike) {
  * 各チャンネルの新着を取得する。外部サービスの障害でビルドを止めないよう例外は投げず、
  * 取得できなかったチャンネルは `status: 'error'` として返す。
  *
- * 使用量の目安：channels.list 1 + playlistItems.list（チャンネル数）+ videos.list（50件ごとに1）ユニット。
+ * 使用量の目安：channels.list 1 + playlistItems.list（チャンネル数 × 3種類）+ videos.list（50件ごとに1）ユニット。
+ * 種類別に取得できなかったチャンネルは、アップロード再生リストの取得で1ユニット増える。
  * 管理人のチャンネルは全動画を50件ずつ取得するため、さらに動画50件ごとに約2ユニット増える。
  */
 export async function fetchChannelUploads(
@@ -243,30 +277,65 @@ export async function fetchChannelUploads(
     return channels.map(failed);
   }
 
+  /** 再生リストの動画IDを、先頭から指定したページ数まで取得する。 */
+  const listPlaylistVideoIds = async (playlistId: string, pages: number): Promise<string[]> => {
+    const ids: string[] = [];
+    let pageToken: string | undefined;
+    for (let page = 0; page < pages; page++) {
+      const result = await request(
+        'playlistItems',
+        {
+          part: 'contentDetails',
+          playlistId,
+          maxResults: String(UPLOADS_PER_CHANNEL),
+          ...(pageToken ? { pageToken } : {}),
+        },
+        playlistItemsResponse,
+      );
+      ids.push(...result.items.map((item) => item.contentDetails.videoId));
+      pageToken = result.nextPageToken;
+      if (!pageToken) break;
+    }
+    return ids;
+  };
+
+  /**
+   * 種類別の再生リストから、動画IDとYouTube上の分類を取得する。
+   * 1件も取得できない場合や、取得に失敗した場合は `undefined` を返す（呼び出し側で推定に戻す）。
+   */
+  const listKindPlaylists = async (
+    channelId: string,
+    pages: number,
+  ): Promise<Map<string, PlaylistKind> | undefined> => {
+    const kinds = new Map<string, PlaylistKind>();
+    for (const { prefix, kind } of KIND_PLAYLISTS) {
+      try {
+        for (const id of await listPlaylistVideoIds(kindPlaylistId(channelId, prefix), pages)) {
+          if (!kinds.has(id)) kinds.set(id, kind);
+        }
+      } catch (error) {
+        // 該当する動画がない種類の再生リストは存在しない（404）。
+        if (error instanceof YouTubeApiError && error.status === 404) continue;
+        return undefined;
+      }
+    }
+    return kinds.size > 0 ? kinds : undefined;
+  };
+
   // 2. チャンネルごとに新着の動画IDを取得する。管理人のチャンネルは代表作を選ぶために全動画を取得する。
-  const videoIdsByChannel = new Map<string, string[]>();
+  const sourcesByChannel = new Map<string, { ids: string[]; kinds?: Map<string, PlaylistKind> }>();
   for (const channel of channels) {
     const playlistId = uploadsPlaylists.get(channel.channelId);
     if (!playlistId) continue;
+    const pages = channel.owner ? MAX_OWNER_PAGES : 1;
     try {
-      const ids: string[] = [];
-      let pageToken: string | undefined;
-      for (let page = 0; page < (channel.owner ? MAX_OWNER_PAGES : 1); page++) {
-        const result = await request(
-          'playlistItems',
-          {
-            part: 'contentDetails',
-            playlistId,
-            maxResults: String(UPLOADS_PER_CHANNEL),
-            ...(pageToken ? { pageToken } : {}),
-          },
-          playlistItemsResponse,
-        );
-        ids.push(...result.items.map((item) => item.contentDetails.videoId));
-        pageToken = result.nextPageToken;
-        if (!pageToken) break;
-      }
-      videoIdsByChannel.set(channel.id, ids);
+      const kinds = await listKindPlaylists(channel.channelId, pages);
+      sourcesByChannel.set(
+        channel.id,
+        kinds
+          ? { ids: [...kinds.keys()], kinds }
+          : { ids: await listPlaylistVideoIds(playlistId, pages) },
+      );
     } catch {
       // このチャンネルだけを取得失敗として扱う。
     }
@@ -277,7 +346,7 @@ export async function fetchChannelUploads(
   const details = new Map<string, ApiVideo>();
   try {
     const idsToFetch = new Set([
-      ...[...videoIdsByChannel.values()].flat(),
+      ...[...sourcesByChannel.values()].flatMap((source) => source.ids),
       ...channels.flatMap((channel) => Object.keys(channel.videoKinds ?? {})),
     ]);
     for (const ids of chunk([...idsToFetch], MAX_IDS_PER_REQUEST)) {
@@ -298,8 +367,10 @@ export async function fetchChannelUploads(
   }
 
   return channels.map((channel) => {
-    const ids = videoIdsByChannel.get(channel.id);
-    if (!ids) return failed(channel);
+    const source = sourcesByChannel.get(channel.id);
+    if (!source) return failed(channel);
+    const { ids, kinds } = source;
+    const convert = (video: ApiVideo) => toUploadVideo(video, kinds?.get(video.id));
     const isChannelVideo = (video: ApiVideo | undefined): video is ApiVideo =>
       video !== undefined && video.snippet.channelId === channel.channelId && isPlayable(video);
     const videoKinds = new Map(Object.entries(channel.videoKinds ?? {}));
@@ -308,13 +379,16 @@ export async function fetchChannelUploads(
       return kind ? { ...video, kind } : video;
     };
     const playable = Array.from(new Set(ids), (id) => details.get(id)).filter(isChannelVideo);
-    const recent = playable
-      .map(toUploadVideo)
-      .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
-      .slice(0, UPLOADS_PER_CHANNEL);
+    const sorted = playable.map(convert).sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
+    // 配信の多いチャンネルでも投稿動画やShortsが埋もれないよう、種類ごとに件数を区切る。
+    const recent = kinds
+      ? KIND_PLAYLISTS.flatMap(({ kind }) =>
+          sorted.filter((video) => kinds.get(video.id) === kind).slice(0, UPLOADS_PER_CHANNEL),
+        )
+      : sorted.slice(0, UPLOADS_PER_CHANNEL);
     const confirmed = Array.from(videoKinds.keys(), (id) => details.get(id))
       .filter(isChannelVideo)
-      .map(toUploadVideo);
+      .map(convert);
     const videos = [...recent.filter((video) => !videoKinds.has(video.id)), ...confirmed]
       .map(applyKindOverride)
       .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
@@ -325,7 +399,7 @@ export async function fetchChannelUploads(
       videos,
       // 管理人自身のチャンネル内での並べ替えのため、集約の制限（III.E.2）には当たらない。
       ...(channel.owner
-        ? { popular: pickPopular(playable, POPULAR_COUNT).map(applyKindOverride) }
+        ? { popular: pickPopular(playable, POPULAR_COUNT, convert).map(applyKindOverride) }
         : {}),
     };
   });

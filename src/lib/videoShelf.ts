@@ -75,16 +75,13 @@ export function sortCategories<T extends Pick<ShelfCategory, 'order' | 'id'>>(
 }
 
 /**
- * 公式データで判定できる範囲の動画の種別。
- * - `live`：配信のアーカイブ、またはプレミア公開（`liveStreamingDetails` があるもの。両者は区別できない）
- * - `short`：3分以下の動画（YouTube Shortsは公式APIで判定できないため、長さだけで分ける）
- * - `regular`：それ以外
+ * 動画の種別。YouTubeの種類別の再生リスト（動画・ショート・ライブ）で分類する。
+ * - `shorts`：YouTube Shorts
+ * - `live`：配信のアーカイブ。種類別に取得できなかった場合はプレミア公開も含む
+ * - `regular`：それ以外の投稿動画
  */
-export const VIDEO_KINDS = ['regular', 'short', 'live', 'shorts'] as const;
+export const VIDEO_KINDS = ['regular', 'live', 'shorts'] as const;
 export type VideoKind = (typeof VIDEO_KINDS)[number];
-
-/** 「短い動画」とみなす長さの上限（秒）。現在のShortsの上限に合わせる。 */
-export const SHORT_VIDEO_MAX_SECONDS = 180;
 
 export interface ShelfVideo {
   /** YouTubeの動画ID */
@@ -106,18 +103,6 @@ export function parseIsoDuration(value: string): number | undefined {
   if (!match || value === 'P' || value.endsWith('T')) return undefined;
   const [, days = '0', hours = '0', minutes = '0', seconds = '0'] = match;
   return ((Number(days) * 24 + Number(hours)) * 60 + Number(minutes)) * 60 + Number(seconds);
-}
-
-export function classifyVideo(options: {
-  durationSeconds?: number;
-  hasLiveStreamingDetails: boolean;
-}): VideoKind {
-  if (options.hasLiveStreamingDetails) return 'live';
-  const { durationSeconds } = options;
-  if (durationSeconds !== undefined && durationSeconds > 0) {
-    return durationSeconds <= SHORT_VIDEO_MAX_SECONDS ? 'short' : 'regular';
-  }
-  return 'regular';
 }
 
 /** 検索用に表記ゆれ（全角・半角、大文字・小文字）をそろえる。 */

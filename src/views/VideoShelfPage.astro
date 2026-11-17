@@ -15,7 +15,6 @@ import {
   validateShelfConfig,
   youtubeChannelUrl,
   youtubeThumbnailUrl,
-  youtubeWatchUrl,
   type ShelfChannel,
   type ShelfItem,
 } from '../lib/videoShelf';
@@ -98,21 +97,12 @@ function uploadCard(
   };
 }
 
-// 再生ステージの初期表示は推しを優先する：おすすめ → 推しチャンネルの新着 → 管理人の代表作 → 管理人の新着。
-const stageCandidates = [
-  ...fanPicks.map(pickCard),
-  ...fanShelves.flatMap(({ channel, uploads }) =>
-    uploads.videos.slice(0, 1).map((video) => uploadCard(channel, video)),
-  ),
-  ...(ownerChannel && ownerUploads
-    ? [...ownerPopular, ...ownerUploads.videos].map((video) => uploadCard(ownerChannel, video))
-    : []),
-];
-const stage = stageCandidates[0];
-const withCurrent = <T extends { videoId: string }>(card: T) => ({
-  ...card,
-  current: card.videoId === stage?.videoId,
-});
+// 再生ステージは、動画を選ぶまで案内だけを表示する（初期表示の動画は決めない）。
+const hasVideos =
+  fanPicks.length > 0 ||
+  fanShelves.some(({ uploads }) => uploads.videos.length > 0) ||
+  ownerPopular.length > 0 ||
+  (ownerUploads?.videos.length ?? 0) > 0;
 
 const fetchedAtFormat = new Intl.DateTimeFormat(locale, {
   dateStyle: 'medium',
@@ -145,64 +135,33 @@ const hasApiData = uploadsById.size > 0;
       <p class="text-muted">{t.videoShelfDescription}</p>
     </header>
 
-    {stage ? (
-      // 再生ステージ。JavaScriptが無効な場合は、サムネイルからYouTubeの視聴ページへ移動する。
+    {hasVideos ? (
+      // 再生ステージ。動画を選ぶまでは案内を表示する。JavaScriptが無効な場合は再生できないため、スクリプトで表示する。
       <div
         class="mx-auto mb-10 grid w-full max-w-4xl gap-3"
         data-video-stage
         data-embed-base={EMBED_BASE_URL}
+        hidden
       >
         <div
           class="border-accent/30 relative aspect-video w-full overflow-hidden rounded-lg border bg-black shadow-[0_0_40px_-12px] shadow-cyan-400/30"
           data-stage-frame
         >
-          <a
-            href={youtubeWatchUrl(stage.videoId)}
-            class="group absolute inset-0 grid place-items-center"
-            data-stage-facade
-            aria-label={t.playVideo.replace('{title}', stage.title)}
-          >
-            <img
-              src={youtubeThumbnailUrl(stage.videoId, 'hqdefault')}
-              alt=""
-              width="480"
-              height="360"
-              decoding="async"
-              class="absolute inset-0 size-full object-cover opacity-80 transition-opacity group-hover:opacity-100"
-            />
+          <div class="text-muted absolute inset-0 grid place-content-center justify-items-center gap-4 p-6 text-center">
             <span
-              class="bg-base/80 border-accent/70 text-accent group-hover:bg-base relative grid size-16 place-items-center rounded-full border-2 transition-colors sm:size-20"
+              class="border-accent/40 text-accent/70 grid size-14 place-items-center rounded-full border-2 border-dashed sm:size-16"
               aria-hidden="true"
             >
-              <svg viewBox="0 0 24 24" class="ml-1 size-7 fill-current sm:size-9">
+              <svg viewBox="0 0 24 24" class="ml-1 size-6 fill-current sm:size-7">
                 <path d="M8 5v14l11-7z" />
               </svg>
             </span>
-          </a>
+            <p class="text-sm text-balance sm:text-lg">{t.stagePlaceholder}</p>
+          </div>
         </div>
-        <div class="grid gap-1">
-          <h2 class="text-lg font-semibold sm:text-xl" data-stage-title>
-            {stage.title}
-          </h2>
-          <p class="text-muted flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-            <a
-              href={stage.channelUrl}
-              class="text-accent hover:text-fg underline-offset-4 hover:underline"
-              data-stage-channel
-            >
-              {stage.channelName}
-            </a>
-            <a
-              href={youtubeWatchUrl(stage.videoId)}
-              class="hover:text-fg underline-offset-4 hover:underline"
-              data-stage-watch
-            >
-              {t.openOnYouTube}
-              <span aria-hidden="true">↗</span>
-            </a>
-          </p>
-        </div>
-        {/* 再生の操作欄。プレイヤーには重ねず、下に置く（規約 RMF）。JavaScriptが無効な場合は表示しない。 */}
+        {/* タイトル・公開元・YouTubeへのリンク。最初の動画が選ばれた時点でスクリプトが中身を作る。 */}
+        <div class="grid gap-1" data-stage-info data-msg-open={t.openOnYouTube} hidden />
+        {/* 再生の操作欄。プレイヤーには重ねず、下に置く（規約 RMF）。動画を選ぶまでは表示しない。 */}
         <div
           class="border-muted/20 grid gap-3 border-t pt-3"
           data-player-controls
@@ -252,7 +211,7 @@ const hasApiData = uploadsById.size > 0;
       <p class="bg-surface border-muted/25 text-muted mb-12 rounded-lg border p-6">{t.noVideos}</p>
     )}
 
-    {stage && (
+    {hasVideos && (
       // 絞り込み。JavaScriptが無効な場合は使えないため、スクリプトで表示する。
       <div
         id="video-filter"
@@ -270,14 +229,13 @@ const hasApiData = uploadsById.size > 0;
             class="bg-surface border-muted/40 min-h-11 w-full max-w-md rounded-md border px-3"
           />
         </div>
-        <fieldset class="grid gap-2" aria-describedby="video-kind-note">
+        <fieldset class="grid gap-2">
           <legend class="mb-2 text-sm font-semibold">{t.videoKind}</legend>
           <div class="flex flex-wrap gap-2">
             {(
               [
                 ['all', t.kindAll],
                 ['regular', t.kindRegular],
-                ['short', t.kindShort],
                 ['shorts', 'Shorts'],
                 ['live', t.kindLive],
               ] as const
@@ -294,9 +252,6 @@ const hasApiData = uploadsById.size > 0;
               </label>
             ))}
           </div>
-          <p id="video-kind-note" class="text-muted text-xs">
-            {t.kindNote}
-          </p>
         </fieldset>
         {usedCategories.length > 1 && (
           <fieldset class="grid gap-2">
@@ -350,7 +305,7 @@ const hasApiData = uploadsById.size > 0;
           data-queue-label={t.picks}
         >
           {fanPicks.map((video) => (
-            <VideoCard {...withCurrent(pickCard(video))} />
+            <VideoCard {...pickCard(video)} />
           ))}
         </ul>
       </section>
@@ -394,7 +349,7 @@ const hasApiData = uploadsById.size > 0;
             <ChannelShelfRows
               channel={channel}
               locale={locale}
-              items={uploads.videos.map((video) => withCurrent(uploadCard(channel, video)))}
+              items={uploads.videos.map((video) => uploadCard(channel, video))}
             />
           </section>
         ))}
@@ -435,7 +390,7 @@ const hasApiData = uploadsById.size > 0;
               queueId="owner-works"
               label={t.ownerWorks}
               variant="compact"
-              items={ownerPopular.map((video) => withCurrent(uploadCard(ownerChannel, video)))}
+              items={ownerPopular.map((video) => uploadCard(ownerChannel, video))}
             />
           </section>
         )}
@@ -457,7 +412,7 @@ const hasApiData = uploadsById.size > 0;
             channel={ownerChannel}
             locale={locale}
             variant="compact"
-            items={ownerUploads.videos.map((video) => withCurrent(uploadCard(ownerChannel, video)))}
+            items={ownerUploads.videos.map((video) => uploadCard(ownerChannel, video))}
           />
         </section>
       </section>

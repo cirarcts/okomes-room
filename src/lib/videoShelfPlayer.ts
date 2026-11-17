@@ -1,5 +1,6 @@
 /**
  * 動画の棚の再生ステージを制御する（ブラウザ専用）。
+ * - 動画を選ぶまでは案内だけを表示し、最初の動画が選ばれた時点で情報と操作欄を出す。
  * - カードを押すと、そのカードがある棚をキューにして再生する（キューはチャンネルをまたがない）。
  * - 「前へ」「次へ」で棚の中を移動する。再生できない動画と、絞り込みで隠れている動画は飛ばす。
  * - 連続再生がONのときは、動画の終了後に次へ進む。自動で再生するのは、プレイヤーの半分を超えて
@@ -38,10 +39,7 @@ export function initVideoShelfPlayer(): void {
 
   const embedBaseUrl = stage.dataset.embedBase ?? '';
   const frame = query<HTMLElement>(stage, '[data-stage-frame]');
-  const titleEl = query<HTMLElement>(stage, '[data-stage-title]');
-  const channelEl = query<HTMLAnchorElement>(stage, '[data-stage-channel]');
-  const watchEl = query<HTMLAnchorElement>(stage, '[data-stage-watch]');
-  const facade = query<HTMLAnchorElement>(stage, '[data-stage-facade]');
+  const infoEl = query<HTMLElement>(stage, '[data-stage-info]');
   const controls = query<HTMLElement>(document, '[data-player-controls]');
   const prevButton = query<HTMLButtonElement>(document, '[data-player-prev]');
   const nextButton = query<HTMLButtonElement>(document, '[data-player-next]');
@@ -68,8 +66,7 @@ export function initVideoShelfPlayer(): void {
 
   const unplayable = new Set<string>();
   let queueElement: HTMLElement | null = null;
-  let currentId = cards.find((card) => card.getAttribute('aria-current') === 'true')?.dataset
-    .videoId;
+  let currentId: string | undefined;
   let player: YouTubePlayer | undefined;
   let playerReady: Promise<YouTubePlayer | undefined> | undefined;
   let autoAdvance = false;
@@ -139,8 +136,33 @@ export function initVideoShelfPlayer(): void {
     });
   };
 
+  // タイトル・公開元・YouTubeへのリンク。空の見出しやリンクを置かないよう、最初の動画が選ばれた時点で作る。
+  let info:
+    { title: HTMLElement; channel: HTMLAnchorElement; watch: HTMLAnchorElement } | undefined;
+  const ensureInfo = () => {
+    if (info || !infoEl) return info;
+    const title = document.createElement('h2');
+    title.className = 'text-lg font-semibold sm:text-xl';
+    const channel = document.createElement('a');
+    channel.className = 'text-accent hover:text-fg underline-offset-4 hover:underline';
+    const watch = document.createElement('a');
+    watch.className = 'hover:text-fg underline-offset-4 hover:underline';
+    const arrow = document.createElement('span');
+    arrow.setAttribute('aria-hidden', 'true');
+    arrow.textContent = '↗';
+    watch.append(`${infoEl.dataset.msgOpen ?? ''} `, arrow);
+    const links = document.createElement('p');
+    links.className = 'text-muted flex flex-wrap items-center gap-x-3 gap-y-1 text-sm';
+    links.append(channel, watch);
+    infoEl.replaceChildren(title, links);
+    infoEl.hidden = false;
+    info = { title, channel, watch };
+    return info;
+  };
+
   const showCurrent = (card: HTMLAnchorElement | undefined) => {
     if (!card) return;
+    const { title: titleEl, channel: channelEl, watch: watchEl } = ensureInfo() ?? {};
     if (titleEl && card.dataset.title) titleEl.textContent = card.dataset.title;
     // プレイヤーを使い回すときも、iframeの名前（スクリーンリーダーが読み上げる）を今の動画に合わせる。
     const iframe = frame.querySelector('iframe');
@@ -280,6 +302,7 @@ export function initVideoShelfPlayer(): void {
       recreateFrame();
     }
     showCurrent(card);
+    if (controls) controls.hidden = false;
     updateControls();
   }
 
@@ -311,11 +334,6 @@ export function initVideoShelfPlayer(): void {
   for (const card of cards) {
     card.addEventListener('click', (event) => handleCardClick(event, card));
   }
-  facade?.addEventListener('click', (event) => {
-    const current = cards.find((card) => card.getAttribute('aria-current') === 'true');
-    if (current) handleCardClick(event, current);
-  });
-
   const step = (find: typeof findNext) => {
     const queue = currentQueue();
     const target = queue && currentId ? find(queue, currentId, { skip: skipped() }) : undefined;
@@ -328,10 +346,7 @@ export function initVideoShelfPlayer(): void {
   });
   document.addEventListener(FILTER_CHANGE_EVENT, updateControls);
 
-  // 初期表示のステージは、その動画がある棚をキューにする。
-  const initialCard = cards.find((card) => card.getAttribute('aria-current') === 'true');
-  queueElement = initialCard?.closest<HTMLElement>('[data-queue-id]') ?? null;
+  // JavaScriptが使えるときだけステージを出す。動画が選ばれるまでは案内を表示したままにする。
   if (autoToggle) autoToggle.checked = false;
-  if (controls) controls.hidden = false;
-  updateControls();
+  stage.hidden = false;
 }

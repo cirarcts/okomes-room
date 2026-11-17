@@ -4,6 +4,7 @@ import {
   chunk,
   fetchChannelUploads,
   isPlayable,
+  kindPlaylistId,
   pickPopular,
   toUploadVideo,
   type ApiVideo,
@@ -124,13 +125,13 @@ describe('toUploadVideo', () => {
 });
 
 describe('動画の種別', () => {
-  it('長さと配信情報から種別と秒数を付ける', () => {
+  it('配信情報の有無で種別を分け、長さを秒数で付ける', () => {
     expect(
       toUploadVideo({ ...apiVideo('aaaaaaaaaa1'), contentDetails: { duration: 'PT4M10S' } }),
     ).toMatchObject({ kind: 'regular', durationSeconds: 250 });
     expect(
       toUploadVideo({ ...apiVideo('aaaaaaaaaa1'), contentDetails: { duration: 'PT59S' } }),
-    ).toMatchObject({ kind: 'short', durationSeconds: 59 });
+    ).toMatchObject({ kind: 'regular', durationSeconds: 59 });
     expect(
       toUploadVideo({
         ...apiVideo('aaaaaaaaaa1'),
@@ -138,6 +139,13 @@ describe('動画の種別', () => {
         liveStreamingDetails: {},
       }),
     ).toMatchObject({ kind: 'live', durationSeconds: 3600 });
+  });
+
+  it('種類別の再生リストで確認できた分類を優先する', () => {
+    const premiere = { ...apiVideo('aaaaaaaaaa1'), liveStreamingDetails: {} };
+    expect(toUploadVideo(premiere, 'regular').kind).toBe('regular');
+    expect(toUploadVideo(apiVideo('aaaaaaaaaa1'), 'shorts').kind).toBe('shorts');
+    expect(toUploadVideo(apiVideo('aaaaaaaaaa1'), 'live').kind).toBe('live');
   });
 
   it('長さが解釈できなければ秒数を省き、通常の動画として扱う', () => {
@@ -322,6 +330,8 @@ describe('管理人のチャンネル', () => {
         });
       }
       if (endpoint === 'playlistItems') {
+        // 種類別の再生リストは空で返し、アップロード再生リストだけを使わせる。
+        if (url.searchParams.get('playlistId') !== 'UUa') return Response.json({ items: [] });
         const second = url.searchParams.get('pageToken') === 'p2';
         const page = second ? ids.slice(10) : ids.slice(0, 10);
         return Response.json({
@@ -345,6 +355,12 @@ describe('管理人のチャンネル', () => {
     return { fetchFn, calls };
   }
 
+  const uploadsCalls = (calls: URL[]) =>
+    calls.filter(
+      (url) =>
+        url.pathname.endsWith('/playlistItems') && url.searchParams.get('playlistId') === 'UUa',
+    );
+
   it('全ページを取得し、直近の動画と視聴回数の上位5本を返す', async () => {
     const { fetchFn, calls } = ownerFetch();
     const [owner] = await fetchChannelUploads(
@@ -353,7 +369,7 @@ describe('管理人のチャンネル', () => {
       fetchFn,
       NOW,
     );
-    expect(calls.filter((url) => url.pathname.endsWith('/playlistItems'))).toHaveLength(2);
+    expect(uploadsCalls(calls)).toHaveLength(2);
     expect(owner.videos).toHaveLength(15);
     expect(owner.videos[0].id).toBe(ids[14]);
     expect(owner.videos.every((video) => video.viewCount === undefined)).toBe(true);
@@ -374,7 +390,7 @@ describe('管理人のチャンネル', () => {
       fetchFn,
       NOW,
     );
-    const playlistCalls = calls.filter((url) => url.pathname.endsWith('/playlistItems'));
+    const playlistCalls = uploadsCalls(calls);
     expect(playlistCalls).toHaveLength(1);
     expect(playlistCalls[0].searchParams.get('maxResults')).toBe('50');
     expect(fan).not.toHaveProperty('popular');
@@ -418,10 +434,149 @@ describe('管理人のチャンネル', () => {
     const videosRequest = calls.find((url) => url.pathname.endsWith('/videos'));
     expect(videosRequest?.searchParams.get('id')?.split(',')).toHaveLength(6);
     expect(fan.videos.map(({ id, kind }) => [id, kind])).toEqual([
-      [unconfirmed, 'short'],
+      [unconfirmed, 'regular'],
       [shorts, 'shorts'],
       [stream, 'live'],
       [premiere, 'regular'],
+    ]);
+  });
+});
+
+describe('種類別の再生リスト', () => {
+  const LF = kindPlaylistId(CHANNEL_A, 'UULF');
+  const SH = kindPlaylistId(CHANNEL_A, 'UUSH');
+  const LV = kindPlaylistId(CHANNEL_A, 'UULV');
+  const [premiere, clip, shorts, longShorts, stream, extra] = Array.from(
+    { length: 6 },
+    (_, index) => `kind${String(index).padStart(7, '0')}`,
+  );
+  const videos: ApiVideo[] = [
+    // 「動画」タブにあるプレミア公開作品
+    {
+      ...apiVideo(premiere, { snippet: { publishedAt: '2026-11-06T00:00:00Z' } }),
+      contentDetails: { duration: 'PT4M' },
+      liveStreamingDetails: {},
+    },
+    {
+      ...apiVideo(clip, { snippet: { publishedAt: '2026-11-05T00:00:00Z' } }),
+      contentDetails: { duration: 'PT2M' },
+    },
+    {
+      ...apiVideo(shorts, { snippet: { publishedAt: '2026-11-04T00:00:00Z' } }),
+      contentDetails: { duration: 'PT29S' },
+    },
+    {
+      ...apiVideo(longShorts, { snippet: { publishedAt: '2026-11-03T00:00:00Z' } }),
+      contentDetails: { duration: 'PT2M50S' },
+    },
+    {
+      ...apiVideo(stream, { snippet: { publishedAt: '2026-11-02T00:00:00Z' } }),
+      contentDetails: { duration: 'PT3H' },
+      liveStreamingDetails: {},
+    },
+    {
+      ...apiVideo(extra, { snippet: { publishedAt: '2026-11-01T00:00:00Z' } }),
+      contentDetails: { duration: 'PT20S' },
+    },
+  ];
+  const kindsOf = (entry: { videos: { id: string; kind: string }[] }) =>
+    entry.videos.map(({ id, kind }) => [id, kind]);
+
+  it('チャンネルIDの先頭を置き換えて再生リストIDを作る', () => {
+    expect(kindPlaylistId('UCgA2jKRkqpY_8eysPUs8sjw', 'UUSH')).toBe('UUSHgA2jKRkqpY_8eysPUs8sjw');
+  });
+
+  it('YouTubeのタブと同じ分類を付け、アップロード再生リストは取得しない', async () => {
+    const { fetchFn, calls } = mockFetch({
+      playlists: { [CHANNEL_A]: 'UUa' },
+      playlistItems: { [LF]: [premiere, clip], [SH]: [shorts, longShorts], [LV]: [stream] },
+      videos,
+    });
+    const [alpha] = await fetchChannelUploads([channels[0]], 'test-key', fetchFn, NOW);
+    expect(kindsOf(alpha)).toEqual([
+      // プレミア公開でも「動画」タブにあれば配信として扱わない
+      [premiere, 'regular'],
+      [clip, 'regular'],
+      [shorts, 'shorts'],
+      [longShorts, 'shorts'],
+      [stream, 'live'],
+    ]);
+    expect(
+      calls.some((url) => url.searchParams.get('playlistId') === 'UUa'),
+      'アップロード再生リストを取得していないこと',
+    ).toBe(false);
+  });
+
+  it('該当する動画がない種類（404）は空として扱う', async () => {
+    const { fetchFn } = mockFetch({
+      playlists: { [CHANNEL_A]: 'UUa' },
+      playlistItems: { [LF]: [clip], [LV]: [stream], UUa: [extra] },
+      videos,
+      fail: (_, url) => (url.searchParams.get('playlistId') === SH ? 404 : undefined),
+    });
+    const [alpha] = await fetchChannelUploads([channels[0]], 'test-key', fetchFn, NOW);
+    expect(kindsOf(alpha)).toEqual([
+      [clip, 'regular'],
+      [stream, 'live'],
+    ]);
+  });
+
+  it.each([
+    ['404以外の失敗', (playlistId: string | null) => (playlistId === SH ? 500 : undefined)],
+    [
+      'すべて404',
+      (playlistId: string | null) => ([LF, SH, LV].includes(playlistId ?? '') ? 404 : undefined),
+    ],
+  ] as const)('%sではアップロード再生リストと公式データからの推定に戻す', async (_, failure) => {
+    const { fetchFn } = mockFetch({
+      playlists: { [CHANNEL_A]: 'UUa' },
+      playlistItems: { [LF]: [clip], [LV]: [stream], UUa: [premiere, shorts, stream] },
+      videos,
+      fail: (_endpoint, url) => failure(url.searchParams.get('playlistId')),
+    });
+    const [alpha] = await fetchChannelUploads([channels[0]], 'test-key', fetchFn, NOW);
+    expect(alpha.status).toBe('ok');
+    expect(kindsOf(alpha)).toEqual([
+      [premiere, 'live'],
+      [shorts, 'regular'],
+      [stream, 'live'],
+    ]);
+  });
+
+  it('種類ごとに直近50本までを残す', async () => {
+    const streams = Array.from(
+      { length: 60 },
+      (_, index) => `live${String(index).padStart(7, '0')}`,
+    );
+    const { fetchFn } = mockFetch({
+      playlists: { [CHANNEL_A]: 'UUa' },
+      playlistItems: { [LF]: [clip], [SH]: [shorts], [LV]: streams },
+      videos: [
+        ...videos,
+        // 投稿動画やShortsより新しい配信が60本ある
+        ...streams.map((id) => apiVideo(id, { snippet: { publishedAt: '2026-11-10T00:00:00Z' } })),
+      ],
+    });
+    const [alpha] = await fetchChannelUploads([channels[0]], 'test-key', fetchFn, NOW);
+    const count = (kind: string) => alpha.videos.filter((video) => video.kind === kind).length;
+    expect([count('live'), count('regular'), count('shorts')]).toEqual([50, 1, 1]);
+  });
+
+  it('手動で指定した分類は、再生リストの分類より優先する', async () => {
+    const { fetchFn } = mockFetch({
+      playlists: { [CHANNEL_A]: 'UUa' },
+      playlistItems: { [LF]: [clip], [SH]: [shorts] },
+      videos,
+    });
+    const [alpha] = await fetchChannelUploads(
+      [{ ...channels[0], videoKinds: { [clip]: 'shorts' } }],
+      'test-key',
+      fetchFn,
+      NOW,
+    );
+    expect(kindsOf(alpha)).toEqual([
+      [clip, 'shorts'],
+      [shorts, 'shorts'],
     ]);
   });
 });

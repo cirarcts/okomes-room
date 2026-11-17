@@ -4,7 +4,6 @@ import {
   CHANNEL_ID_PATTERN,
   VIDEO_ID_PATTERN,
   buildShelf,
-  classifyVideo,
   isFilterActive,
   sortCategories,
   sortChannels,
@@ -135,23 +134,6 @@ describe('parseIsoDuration', () => {
   });
 });
 
-describe('classifyVideo', () => {
-  it('配信・プレミアの情報があれば長さに関係なく live', () => {
-    expect(classifyVideo({ durationSeconds: 30, hasLiveStreamingDetails: true })).toBe('live');
-  });
-
-  it('3分ちょうどまでは short、それを超えると regular', () => {
-    expect(classifyVideo({ durationSeconds: 180, hasLiveStreamingDetails: false })).toBe('short');
-    expect(classifyVideo({ durationSeconds: 181, hasLiveStreamingDetails: false })).toBe('regular');
-    expect(classifyVideo({ durationSeconds: 1, hasLiveStreamingDetails: false })).toBe('short');
-  });
-
-  it('長さが不明または0秒なら regular', () => {
-    expect(classifyVideo({ hasLiveStreamingDetails: false })).toBe('regular');
-    expect(classifyVideo({ durationSeconds: 0, hasLiveStreamingDetails: false })).toBe('regular');
-  });
-});
-
 describe('検索と絞り込み', () => {
   it('全角・半角と大文字・小文字をそろえて語に分ける', () => {
     expect(parseSearchTerms('  ＧＴ７　Cover  ')).toEqual(['gt7', 'cover']);
@@ -172,8 +154,10 @@ describe('検索と絞り込み', () => {
   });
 
   it('種別を指定すると、種別が一致するものだけが残る', () => {
-    expect(matchesVideoFilter({ ...target, kind: 'short' }, { ...all, kind: 'short' })).toBe(true);
-    expect(matchesVideoFilter(target, { ...all, kind: 'short' })).toBe(false);
+    expect(matchesVideoFilter({ ...target, kind: 'shorts' }, { ...all, kind: 'shorts' })).toBe(
+      true,
+    );
+    expect(matchesVideoFilter(target, { ...all, kind: 'shorts' })).toBe(false);
   });
 
   it('種別が未取得の動画は「すべて」でだけ表示する', () => {
