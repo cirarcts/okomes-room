@@ -93,6 +93,10 @@ const videoChannel = z.object({
   // 管理人自身のチャンネル。推しチャンネルとは分けて、ページ下部の専用コーナーに表示する（1つまで）。
   owner: z.boolean().default(false),
   enabled: z.boolean().default(true),
+  // YouTubeのチャンネルタブで確認した分類。自動判定より優先する。
+  videoKinds: z
+    .record(z.string().regex(VIDEO_ID_PATTERN), z.enum(['regular', 'shorts', 'live']))
+    .default({}),
 });
 
 // 動画の棚：チャンネルに付けるカテゴリの定義。表示順は `order` の小さい順。

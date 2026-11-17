@@ -30,6 +30,7 @@ interface Props {
   variant?: 'grid' | 'shelf' | 'compact';
   /** 再生ステージで選択中かどうか */
   current?: boolean;
+  older?: boolean;
 }
 
 const {
@@ -46,11 +47,13 @@ const {
   categories,
   variant = 'grid',
   current,
+  older,
 } = Astro.props;
 const t = messages[locale];
 const dateFormat = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'Asia/Tokyo' });
 // 「通常」はラベルを付けず、区別が必要な種別だけを示す。
-const kindLabel = kind === 'live' ? t.kindLive : kind === 'short' ? t.kindShort : undefined;
+const kindLabel = { live: t.kindLive, short: t.kindShort, shorts: 'Shorts', regular: undefined };
+const badge = kind && kindLabel[kind];
 ---
 
 <li
@@ -61,6 +64,7 @@ const kindLabel = kind === 'live' ? t.kindLive : kind === 'short' ? t.kindShort 
     variant === 'compact' && 'w-48 shrink-0 snap-start sm:w-56',
   ]}
   data-video-item
+  data-older-video={older ? '' : undefined}
   data-kind={kind}
   data-categories={categories.join(' ')}
   data-search={`${title} ${channelName}`}
@@ -99,10 +103,10 @@ const kindLabel = kind === 'live' ? t.kindLive : kind === 'short' ? t.kindShort 
       {t.unplayable}
     </span>
   </a>
-  {(kindLabel || durationSeconds !== undefined || viewCount !== undefined) && (
+  {(badge || durationSeconds !== undefined || viewCount !== undefined) && (
     <p class="text-muted -mt-1 flex flex-wrap items-center gap-2 px-4 pb-3 text-xs">
-      {kindLabel && (
-        <span class="border-warm/50 text-warm rounded-sm border px-1.5 py-0.5">{kindLabel}</span>
+      {badge && (
+        <span class="border-warm/50 text-warm rounded-sm border px-1.5 py-0.5">{badge}</span>
       )}
       {durationSeconds !== undefined && (
         <span class="font-mono">

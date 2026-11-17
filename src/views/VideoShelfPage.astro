@@ -1,6 +1,7 @@
 ---
 import { getCollection } from 'astro:content';
 
+import ChannelShelfRows from '../components/video-shelf/ChannelShelfRows.astro';
 import ShelfRow from '../components/video-shelf/ShelfRow.astro';
 import VideoCard from '../components/video-shelf/VideoCard.astro';
 import BaseLayout from '../layouts/BaseLayout.astro';
@@ -120,7 +121,7 @@ const fetchedAtFormat = new Intl.DateTimeFormat(locale, {
 });
 const countLabel = (count: number) =>
   locale === 'en' && count === 1 ? '1 video' : t.videoCount.replace('{count}', String(count));
-const hasApiData = fanShelves.length > 0 || ownerUploads !== undefined;
+const hasApiData = uploadsById.size > 0;
 ---
 
 <BaseLayout title={t.videoShelfTitle} description={t.videoShelfDescription}>
@@ -277,6 +278,7 @@ const hasApiData = fanShelves.length > 0 || ownerUploads !== undefined;
                 ['all', t.kindAll],
                 ['regular', t.kindRegular],
                 ['short', t.kindShort],
+                ['shorts', 'Shorts'],
                 ['live', t.kindLive],
               ] as const
             ).map(([value, label]) => (
@@ -386,15 +388,14 @@ const hasApiData = fanShelves.length > 0 || ownerUploads !== undefined;
             </div>
             {uploads.status === 'error' ? (
               <p class="text-muted text-sm">{t.fetchFailed}</p>
-            ) : uploads.videos.length === 0 ? (
-              <p class="text-muted text-sm">{t.noUploads}</p>
             ) : (
-              <ShelfRow
-                queueId={`latest-${channel.id}`}
-                label={t.latestOf.replace('{channel}', channel.name)}
-                items={uploads.videos.map((video) => withCurrent(uploadCard(channel, video)))}
-              />
+              uploads.videos.length === 0 && <p class="text-muted text-sm">{t.noUploads}</p>
             )}
+            <ChannelShelfRows
+              channel={channel}
+              locale={locale}
+              items={uploads.videos.map((video) => withCurrent(uploadCard(channel, video)))}
+            />
           </section>
         ))}
       </section>
@@ -438,36 +439,27 @@ const hasApiData = fanShelves.length > 0 || ownerUploads !== undefined;
             />
           </section>
         )}
-        {ownerUploads && (
-          <section
-            aria-labelledby="owner-latest-title"
-            class="grid min-w-0 gap-3"
-            data-filter-group
-          >
-            <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-              <h3 id="owner-latest-title" class="text-sm font-semibold">
-                {t.ownerLatest}
-              </h3>
-              <p class="text-muted text-xs">
-                {t.fetchedAt.replace('{date}', fetchedAtFormat.format(ownerUploads.fetchedAt))}
-              </p>
-            </div>
-            {ownerUploads.status === 'error' ? (
-              <p class="text-muted text-sm">{t.fetchFailed}</p>
-            ) : ownerUploads.videos.length === 0 ? (
-              <p class="text-muted text-sm">{t.noUploads}</p>
-            ) : (
-              <ShelfRow
-                queueId="owner-latest"
-                label={t.ownerLatest}
-                variant="compact"
-                items={ownerUploads.videos.map((video) =>
-                  withCurrent(uploadCard(ownerChannel, video)),
-                )}
-              />
-            )}
-          </section>
-        )}
+        <section aria-labelledby="owner-latest-title" class="grid min-w-0 gap-3" data-filter-group>
+          <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <h3 id="owner-latest-title" class="text-sm font-semibold">
+              {t.ownerLatest}
+            </h3>
+            <p class="text-muted text-xs">
+              {t.fetchedAt.replace('{date}', fetchedAtFormat.format(ownerUploads.fetchedAt))}
+            </p>
+          </div>
+          {ownerUploads.status === 'error' ? (
+            <p class="text-muted text-sm">{t.fetchFailed}</p>
+          ) : (
+            ownerUploads.videos.length === 0 && <p class="text-muted text-sm">{t.noUploads}</p>
+          )}
+          <ChannelShelfRows
+            channel={ownerChannel}
+            locale={locale}
+            variant="compact"
+            items={ownerUploads.videos.map((video) => withCurrent(uploadCard(ownerChannel, video)))}
+          />
+        </section>
       </section>
     )}
 
@@ -547,9 +539,18 @@ const hasApiData = fanShelves.length > 0 || ownerUploads !== undefined;
   );
   const isVideoKind = (value: string | undefined): value is VideoKind =>
     VIDEO_KINDS.some((kind) => kind === value);
+  const disclosures = new Map(
+    Array.from(document.querySelectorAll<HTMLButtonElement>('[data-expand-shelf]'), (button) => [
+      button.getAttribute('aria-controls'),
+      button,
+    ]),
+  );
   const items = Array.from(document.querySelectorAll<HTMLElement>('[data-video-item]'), (item) => ({
     item,
     videoId: item.querySelector<HTMLElement>('[data-video-card]')?.dataset.videoId ?? '',
+    disclosure: item.hasAttribute('data-older-video')
+      ? disclosures.get(item.parentElement?.id ?? '')
+      : undefined,
     target: {
       searchText: normalizeSearchText(item.dataset.search ?? ''),
       kind: isVideoKind(item.dataset.kind) ? item.dataset.kind : undefined,
@@ -569,14 +570,17 @@ const hasApiData = fanShelves.length > 0 || ownerUploads !== undefined;
         kind: isVideoKind(selectedKind) ? selectedKind : ('all' as const),
         category: categoryInputs.find((input) => input.checked)?.value ?? 'all',
       };
+      const active = isFilterActive(videoFilter);
+      for (const button of disclosures.values()) button.hidden = active;
       // おすすめと新着の両方にある動画は1本として数える。
       const matched = new Set<string>();
       for (const entry of items) {
-        entry.item.hidden = !matchesVideoFilter(entry.target, videoFilter);
+        const collapsed = entry.disclosure?.getAttribute('aria-expanded') === 'false';
+        entry.item.hidden =
+          (!active && collapsed) || !matchesVideoFilter(entry.target, videoFilter);
         if (!entry.item.hidden) matched.add(entry.videoId);
       }
       // 絞り込み中は、該当する動画が1本もない棚（取得失敗などの棚を含む）を隠す。
-      const active = isFilterActive(videoFilter);
       for (const group of groups) group.hidden = false;
       for (const group of groups) {
         group.hidden =
@@ -603,6 +607,16 @@ const hasApiData = fanShelves.length > 0 || ownerUploads !== undefined;
     query.addEventListener('input', updateResults);
     for (const input of [...kindInputs, ...categoryInputs]) {
       input.addEventListener('change', updateResults);
+    }
+    for (const button of disclosures.values()) {
+      button.addEventListener('click', () => {
+        const expanded = button.getAttribute('aria-expanded') === 'true';
+        const label = (expanded ? button.dataset.show : button.dataset.hide) ?? '';
+        button.setAttribute('aria-expanded', String(!expanded));
+        button.setAttribute('aria-label', `${label} · ${button.dataset.label ?? ''}`);
+        button.textContent = label;
+        updateResults();
+      });
     }
     // ブラウザの「戻る」で入力内容が復元された場合にも結果を合わせる。
     window.addEventListener('pageshow', updateResults);

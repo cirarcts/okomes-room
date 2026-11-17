@@ -80,7 +80,7 @@ export function sortCategories<T extends Pick<ShelfCategory, 'order' | 'id'>>(
  * - `short`：3分以下の動画（YouTube Shortsは公式APIで判定できないため、長さだけで分ける）
  * - `regular`：それ以外
  */
-export const VIDEO_KINDS = ['regular', 'short', 'live'] as const;
+export const VIDEO_KINDS = ['regular', 'short', 'live', 'shorts'] as const;
 export type VideoKind = (typeof VIDEO_KINDS)[number];
 
 /** 「短い動画」とみなす長さの上限（秒）。現在のShortsの上限に合わせる。 */

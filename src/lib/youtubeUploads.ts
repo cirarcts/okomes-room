@@ -8,8 +8,8 @@ import { z } from 'astro/zod';
 import { VIDEO_ID_PATTERN, classifyVideo, parseIsoDuration, type VideoKind } from './videoShelf';
 
 const API_BASE_URL = 'https://www.googleapis.com/youtube/v3/';
-/** 1チャンネルあたりに取得する新着の件数（`playlistItems.list` の maxResults、上限50）。 */
-export const UPLOADS_PER_CHANNEL = 12;
+/** 1チャンネルあたりに取得する直近のアップロード候補数。 */
+const UPLOADS_PER_CHANNEL = 50;
 /** `id` に複数指定できる上限。 */
 const MAX_IDS_PER_REQUEST = 50;
 /** 管理人チャンネルの代表作として表示する、視聴回数の上位の件数。 */
@@ -26,6 +26,8 @@ export interface UploadsChannel {
   channelId: string;
   /** 管理人のチャンネル。全動画を取得し、視聴回数の上位を代表作として返す。 */
   owner?: boolean;
+  /** YouTubeで確認した種類。直近の取得範囲外でも動画の詳細を取得する。 */
+  videoKinds?: Readonly<Partial<Record<string, VideoKind>>>;
 }
 
 export interface UploadVideo {
@@ -255,7 +257,7 @@ export async function fetchChannelUploads(
           {
             part: 'contentDetails',
             playlistId,
-            maxResults: String(channel.owner ? MAX_IDS_PER_REQUEST : UPLOADS_PER_CHANNEL),
+            maxResults: String(UPLOADS_PER_CHANNEL),
             ...(pageToken ? { pageToken } : {}),
           },
           playlistItemsResponse,
@@ -274,7 +276,11 @@ export async function fetchChannelUploads(
   //    削除・非公開になった動画は応答に含まれないため、自然に除外される。
   const details = new Map<string, ApiVideo>();
   try {
-    for (const ids of chunk([...new Set([...videoIdsByChannel.values()].flat())], 50)) {
+    const idsToFetch = new Set([
+      ...[...videoIdsByChannel.values()].flat(),
+      ...channels.flatMap((channel) => Object.keys(channel.videoKinds ?? {})),
+    ]);
+    for (const ids of chunk([...idsToFetch], MAX_IDS_PER_REQUEST)) {
       const result = await request(
         'videos',
         {
@@ -294,23 +300,33 @@ export async function fetchChannelUploads(
   return channels.map((channel) => {
     const ids = videoIdsByChannel.get(channel.id);
     if (!ids) return failed(channel);
-    const playable = ids
-      .map((id) => details.get(id))
-      .filter(
-        (video): video is ApiVideo =>
-          video !== undefined && video.snippet.channelId === channel.channelId && isPlayable(video),
-      );
-    const videos = playable
+    const isChannelVideo = (video: ApiVideo | undefined): video is ApiVideo =>
+      video !== undefined && video.snippet.channelId === channel.channelId && isPlayable(video);
+    const videoKinds = new Map(Object.entries(channel.videoKinds ?? {}));
+    const applyKindOverride = (video: UploadVideo): UploadVideo => {
+      const kind = videoKinds.get(video.id);
+      return kind ? { ...video, kind } : video;
+    };
+    const playable = Array.from(new Set(ids), (id) => details.get(id)).filter(isChannelVideo);
+    const recent = playable
       .map(toUploadVideo)
       .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
       .slice(0, UPLOADS_PER_CHANNEL);
+    const confirmed = Array.from(videoKinds.keys(), (id) => details.get(id))
+      .filter(isChannelVideo)
+      .map(toUploadVideo);
+    const videos = [...recent.filter((video) => !videoKinds.has(video.id)), ...confirmed]
+      .map(applyKindOverride)
+      .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
     return {
       channel: channel.id,
       status: 'ok',
       fetchedAt,
       videos,
       // 管理人自身のチャンネル内での並べ替えのため、集約の制限（III.E.2）には当たらない。
-      ...(channel.owner ? { popular: pickPopular(playable, POPULAR_COUNT) } : {}),
+      ...(channel.owner
+        ? { popular: pickPopular(playable, POPULAR_COUNT).map(applyKindOverride) }
+        : {}),
     };
   });
 }
