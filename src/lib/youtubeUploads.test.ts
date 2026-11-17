@@ -345,7 +345,7 @@ describe('管理人のチャンネル', () => {
     return { fetchFn, calls };
   }
 
-  it('全ページを取得し、新着12本と視聴回数の上位5本を返す', async () => {
+  it('全ページを取得し、直近の動画と視聴回数の上位5本を返す', async () => {
     const { fetchFn, calls } = ownerFetch();
     const [owner] = await fetchChannelUploads(
       [{ id: 'me', channelId: CHANNEL_A, owner: true }],
@@ -354,7 +354,7 @@ describe('管理人のチャンネル', () => {
       NOW,
     );
     expect(calls.filter((url) => url.pathname.endsWith('/playlistItems'))).toHaveLength(2);
-    expect(owner.videos).toHaveLength(12);
+    expect(owner.videos).toHaveLength(15);
     expect(owner.videos[0].id).toBe(ids[14]);
     expect(owner.videos.every((video) => video.viewCount === undefined)).toBe(true);
     expect(owner.popular?.map((video) => [video.id, video.viewCount])).toEqual([
@@ -376,7 +376,52 @@ describe('管理人のチャンネル', () => {
     );
     const playlistCalls = calls.filter((url) => url.pathname.endsWith('/playlistItems'));
     expect(playlistCalls).toHaveLength(1);
-    expect(playlistCalls[0].searchParams.get('maxResults')).toBe('12');
+    expect(playlistCalls[0].searchParams.get('maxResults')).toBe('50');
     expect(fan).not.toHaveProperty('popular');
+  });
+
+  it('確認済みの分類を優先し、直近の取得範囲外の公開動画を追加する', async () => {
+    const [premiere, shorts, stream, foreign, privateVideo, unconfirmed] = ids;
+    const { fetchFn, calls } = mockFetch({
+      playlists: { [CHANNEL_A]: 'UUa' },
+      playlistItems: { UUa: [shorts, stream, unconfirmed] },
+      videos: [
+        {
+          ...apiVideo(premiere, { snippet: { publishedAt: '2025-12-06T00:00:00Z' } }),
+          liveStreamingDetails: {},
+        },
+        { ...apiVideo(shorts), contentDetails: { duration: 'PT29S' } },
+        { ...apiVideo(stream), liveStreamingDetails: {} },
+        apiVideo(foreign, { snippet: { channelId: CHANNEL_B } }),
+        apiVideo(privateVideo, { status: { privacyStatus: 'private' } }),
+        { ...apiVideo(unconfirmed), contentDetails: { duration: 'PT24S' } },
+      ],
+    });
+    const [fan] = await fetchChannelUploads(
+      [
+        {
+          id: 'fan',
+          channelId: CHANNEL_A,
+          videoKinds: {
+            [premiere]: 'regular',
+            [shorts]: 'shorts',
+            [stream]: 'live',
+            [foreign]: 'shorts',
+            [privateVideo]: 'regular',
+          },
+        },
+      ],
+      'test-key',
+      fetchFn,
+      NOW,
+    );
+    const videosRequest = calls.find((url) => url.pathname.endsWith('/videos'));
+    expect(videosRequest?.searchParams.get('id')?.split(',')).toHaveLength(6);
+    expect(fan.videos.map(({ id, kind }) => [id, kind])).toEqual([
+      [unconfirmed, 'short'],
+      [shorts, 'shorts'],
+      [stream, 'live'],
+      [premiere, 'regular'],
+    ]);
   });
 });

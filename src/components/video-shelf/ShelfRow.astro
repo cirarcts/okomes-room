@@ -1,6 +1,7 @@
 ---
 import type { ComponentProps } from 'astro/types';
 
+import { messages } from '../../lib/messages';
 import VideoCard from './VideoCard.astro';
 
 type CardProps = ComponentProps<typeof VideoCard>;
@@ -12,19 +13,40 @@ interface Props {
   label: string;
   items: Omit<CardProps, 'variant'>[];
   variant?: 'shelf' | 'compact';
+  /** 指定時はこの件数だけ先に見せ、残りをボタンで展開する。 */
+  initialCount?: number;
 }
 
-const { queueId, label, items, variant = 'shelf' } = Astro.props;
+const { queueId, label, items, variant = 'shelf', initialCount = items.length } = Astro.props;
+const t = items[0] && messages[items[0].locale];
+const id = `queue-${queueId}`;
 ---
 
 {/* 横スクロールの棚。カードのリンクにフォーカスすると、ブラウザが表示位置まで自動でスクロールする。 */}
 <ul
   class="-mx-1 flex snap-x snap-mandatory scroll-px-1 gap-4 overflow-x-auto overscroll-x-contain px-1 pt-1 pb-3"
   aria-label={label}
+  id={id}
   data-queue-id={queueId}
   data-queue-label={label}
 >
-  {items.map((item) => (
-    <VideoCard {...item} variant={variant} />
+  {items.map((item, index) => (
+    <VideoCard {...item} older={index >= initialCount} variant={variant} />
   ))}
 </ul>
+{t && items.length > initialCount && (
+  <button
+    type="button"
+    class="bg-surface border-muted/25 hover:border-accent/60 w-fit min-h-11 rounded-full border px-4 text-sm"
+    aria-controls={id}
+    aria-expanded="false"
+    aria-label={`${t.showOlder} · ${label}`}
+    data-expand-shelf
+    data-label={label}
+    data-show={t.showOlder}
+    data-hide={t.hideOlder}
+    hidden
+  >
+    {t.showOlder}
+  </button>
+)}

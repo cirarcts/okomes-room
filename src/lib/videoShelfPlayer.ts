@@ -103,7 +103,16 @@ export function initVideoShelfPlayer(): void {
     if (nextButton) {
       nextButton.disabled = !queue || !currentId || !findNext(queue, currentId, { skip });
     }
-    const position = queue && currentId ? queuePosition(queue, currentId) : undefined;
+    const position =
+      queue && currentId
+        ? queuePosition(
+            {
+              ...queue,
+              videoIds: queue.videoIds.filter((id) => id === currentId || !skip.has(id)),
+            },
+            currentId,
+          )
+        : undefined;
     if (positionEl) {
       positionEl.textContent =
         queue && position

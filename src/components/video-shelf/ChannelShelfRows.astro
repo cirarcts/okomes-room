@@ -1,0 +1,50 @@
+---
+import type { ComponentProps } from 'astro/types';
+
+import type { Locale } from '../../lib/locale';
+import { messages } from '../../lib/messages';
+import { youtubeChannelUrl, type ShelfChannel } from '../../lib/videoShelf';
+import ShelfRow from './ShelfRow.astro';
+
+interface Props {
+  channel: ShelfChannel;
+  locale: Locale;
+  items: ComponentProps<typeof ShelfRow>['items'];
+  variant?: 'shelf' | 'compact';
+}
+
+const { channel, locale, items, variant } = Astro.props;
+const t = messages[locale];
+const rows = [
+  {
+    id: 'uploads',
+    title: t.uploadVideos,
+    items: items.filter(({ kind }) => kind !== 'live' && kind !== 'shorts'),
+  },
+  { id: 'archives', title: t.uploadArchives, items: items.filter(({ kind }) => kind === 'live') },
+  { id: 'shorts', title: 'Shorts', items: items.filter(({ kind }) => kind === 'shorts') },
+];
+---
+
+{rows.map(({ id, title, items }) => {
+  if (items.length === 0) return null;
+  const rowId = `${channel.id}-${id}`;
+  const label = `${channel.name} · ${title}`;
+  return (
+    <section aria-labelledby={`${rowId}-heading`} class="grid min-w-0 gap-2" data-filter-group>
+      <h4 id={`${rowId}-heading`} class="text-muted text-sm font-semibold">
+        {title}
+      </h4>
+      <ShelfRow queueId={rowId} label={label} items={items} variant={variant} initialCount={4} />
+      {id === 'shorts' && (
+        <a
+          href={`${youtubeChannelUrl(channel.channelId)}/shorts`}
+          class="text-accent hover:text-fg inline-flex min-h-11 w-fit items-center gap-1 text-sm underline-offset-4 hover:underline"
+          aria-label={`${t.openChannelShorts} · ${channel.name}`}
+        >
+          {t.openChannelShorts} <span aria-hidden="true">↗</span>
+        </a>
+      )}
+    </section>
+  );
+})}
