@@ -28,8 +28,6 @@ interface Props {
    * `compact` は管理人コーナー用の小さめのカード。
    */
   variant?: 'grid' | 'shelf' | 'compact';
-  /** 再生ステージで選択中かどうか */
-  current?: boolean;
   older?: boolean;
 }
 
@@ -46,13 +44,12 @@ const {
   viewCount,
   categories,
   variant = 'grid',
-  current,
   older,
 } = Astro.props;
 const t = messages[locale];
 const dateFormat = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'Asia/Tokyo' });
 // 「通常」はラベルを付けず、区別が必要な種別だけを示す。
-const kindLabel = { live: t.kindLive, short: t.kindShort, shorts: 'Shorts', regular: undefined };
+const kindLabel = { live: t.kindLive, shorts: 'Shorts', regular: undefined };
 const badge = kind && kindLabel[kind];
 ---
 
@@ -78,7 +75,6 @@ const badge = kind && kindLabel[kind];
     data-title={title}
     data-channel-name={channelName}
     data-channel-url={channelUrl}
-    aria-current={current ? 'true' : undefined}
   >
     {/* サムネイルは改変・被覆しない（規約）。種別や長さは画像の外に表示する。 */}
     <img
