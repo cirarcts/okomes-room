@@ -8,3 +8,6 @@ package-lock.json
 docs/idea.md
 CLAUDE.md
 AGENTS.md
+
+# 作業用のメモ置き場（Git管理外）
+tmp/

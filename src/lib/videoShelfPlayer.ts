@@ -2,7 +2,8 @@
  * 動画の棚の再生ステージを制御する（ブラウザ専用）。
  * - 動画を選ぶまでは案内だけを表示し、最初の動画が選ばれた時点で情報と操作欄を出す。
  * - カードを押すと、そのカードがある棚をキューにして再生する（キューはチャンネルをまたがない）。
- * - 「前へ」「次へ」で棚の中を移動する。再生できない動画と、絞り込みで隠れている動画は飛ばす。
+ * - 「前へ」「次へ」で棚の中を移動する。再生できない動画と、絞り込みで外れた動画は飛ばす。
+ *   「過去の動画を見る」で開いていない動画は、画面に出ていなくても再生の対象にする。
  * - 連続再生がONのときは、動画の終了後に次へ進む。自動で再生するのは、プレイヤーの半分を超えて
  *   見えていて、かつタブが表示中の場合だけ（規約 RMF）。それ以外は準備だけしてユーザーの操作を待つ。
  */
@@ -78,11 +79,11 @@ export function initVideoShelfPlayer(): void {
       `[data-video-card][data-video-id="${CSS.escape(videoId)}"]`,
     ) ?? cards.find((card) => card.dataset.videoId === videoId);
 
-  // 再生できない動画と、絞り込みで隠れている動画を飛ばす。
+  // 再生できない動画と、絞り込みで外れた動画を飛ばす。折りたたみで隠れているだけの動画は飛ばさない。
   const skipped = () => {
     const skip = new Set(unplayable);
     for (const card of queueElement?.querySelectorAll<HTMLElement>('[data-video-card]') ?? []) {
-      if (card.closest('[hidden]')) skip.add(card.dataset.videoId ?? '');
+      if (card.closest('[data-filtered-out]')) skip.add(card.dataset.videoId ?? '');
     }
     return skip;
   };
@@ -125,7 +126,8 @@ export function initVideoShelfPlayer(): void {
   const revealCard = (card: HTMLElement | undefined) => {
     const list = card?.closest<HTMLElement>('[data-queue-id]');
     const item = card?.closest<HTMLElement>('li');
-    if (!list || !item || list.scrollWidth <= list.clientWidth) return;
+    // 折りたたみで隠れているカードは位置を測れないため、棚は動かさない。
+    if (!list || !item || item.hidden || list.scrollWidth <= list.clientWidth) return;
     const listRect = list.getBoundingClientRect();
     const itemRect = item.getBoundingClientRect();
     if (itemRect.left >= listRect.left && itemRect.right <= listRect.right) return;

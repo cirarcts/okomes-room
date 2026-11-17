@@ -531,8 +531,10 @@ const hasApiData = uploadsById.size > 0;
       const matched = new Set<string>();
       for (const entry of items) {
         const collapsed = entry.disclosure?.getAttribute('aria-expanded') === 'false';
-        entry.item.hidden =
-          (!active && collapsed) || !matchesVideoFilter(entry.target, videoFilter);
+        const matches = matchesVideoFilter(entry.target, videoFilter);
+        // 折りたたみで隠れているだけの動画は再生の対象に残すため、絞り込みで外れた動画には別の印を付ける。
+        entry.item.toggleAttribute('data-filtered-out', !matches);
+        entry.item.hidden = (!active && collapsed) || !matches;
         if (!entry.item.hidden) matched.add(entry.videoId);
       }
       // 絞り込み中は、該当する動画が1本もない棚（取得失敗などの棚を含む）を隠す。
