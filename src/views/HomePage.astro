@@ -1,6 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import { NAV_ITEMS } from '../lib/navigation';
+import { ABOUT_ITEM, NAV_ITEMS } from '../lib/navigation';
 import { getPageLocale, localizedPath } from '../lib/locale';
 import { messages } from '../lib/messages';
 
@@ -36,7 +36,17 @@ const doorIcon = 'M5 21h14M7 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M14 12h.01';
         <h1 id="room-title" class="room-title font-bold tracking-tight">
           {t.siteName}
         </h1>
-        <p class="text-muted">{t.tagline}</p>
+        <div>
+          <a
+            href={localizedPath(locale, ABOUT_ITEM.href)}
+            class="text-accent hover:text-fg inline-flex min-h-11 items-center gap-2 rounded-sm text-sm font-medium transition-colors"
+          >
+            <span class="underline underline-offset-4">
+              {locale === 'ja' ? ABOUT_ITEM.label : ABOUT_ITEM.subLabel}
+            </span>
+            <span aria-hidden="true">→</span>
+          </a>
+        </div>
       </div>
 
       <nav class="room-shelf" aria-label={t.roomEntrances}>

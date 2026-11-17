@@ -1,0 +1,64 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getPageLocale, localizedPath } from '../lib/locale';
+import { messages } from '../lib/messages';
+import { ABOUT_ITEM } from '../lib/navigation';
+
+const { locale } = getPageLocale(Astro.url.pathname);
+const t = messages[locale];
+const title = locale === 'ja' ? ABOUT_ITEM.label : ABOUT_ITEM.subLabel;
+const exhibits = [
+  {
+    href: '/exhibits/kemper/',
+    title: 'Kemper Rig Viewer',
+    lang: 'en',
+    description: t.kemperDescription,
+  },
+  {
+    href: '/exhibits/video-shelf/',
+    title: t.videoShelfTitle,
+    lang: locale,
+    description: t.videoShelfDescription,
+  },
+];
+---
+
+<BaseLayout title={title} description={t.siteDescription}>
+  <div class="mx-auto w-full max-w-3xl px-4 py-12 sm:py-20">
+    <header class="grid gap-4">
+      {locale === 'ja' && (
+        <p class="text-accent font-mono text-sm tracking-widest" lang="en">
+          {ABOUT_ITEM.subLabel}
+        </p>
+      )}
+      <h1 class="text-3xl font-bold sm:text-4xl">{title}</h1>
+      <p class="text-fg max-w-prose text-lg leading-relaxed">{t.siteDescription}</p>
+      <div class="grid gap-2">
+        <p class="text-warm font-semibold">{t.tagline}</p>
+        <p class="text-muted max-w-prose leading-relaxed">{t.aboutIntro}</p>
+      </div>
+    </header>
+
+    <section class="border-muted/25 mt-10 border-t pt-8" aria-labelledby="about-exhibits">
+      <h2 id="about-exhibits" class="mb-4 text-xl font-semibold">
+        {t.aboutExhibits}
+      </h2>
+      <ul class="grid gap-3 sm:grid-cols-2">
+        {exhibits.map((exhibit) => (
+          <li>
+            <a
+              href={localizedPath(locale, exhibit.href)}
+              class="border-muted/25 bg-surface hover:border-accent/60 hover:bg-subtle grid h-full content-start gap-2 rounded-lg border p-4 transition-colors"
+            >
+              <span class="text-accent flex items-baseline justify-between gap-3 font-semibold">
+                <span lang={exhibit.lang}>{exhibit.title}</span>
+                <span aria-hidden="true">→</span>
+              </span>
+              <span class="text-muted text-sm leading-relaxed">{exhibit.description}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
+  </div>
+</BaseLayout>

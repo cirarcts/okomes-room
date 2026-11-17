@@ -18,6 +18,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { label: 'アトリエ', subLabel: 'Atelier', href: '/atelier/' },
 ];
 
+/** 展示や記録のエリアとは別に置く、サイトの案内。 */
+export const ABOUT_ITEM: NavItem = {
+  label: 'このサイトについて',
+  subLabel: 'About',
+  href: '/about/',
+};
+
 /** 比較用に末尾スラッシュを必ず1つ付ける。 */
 function ensureTrailingSlash(path: string): string {
   return `${path.replace(/\/+$/, '')}/`;

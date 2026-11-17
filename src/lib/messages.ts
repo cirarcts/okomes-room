@@ -3,7 +3,10 @@ import type { Locale } from './locale';
 const ja = {
   siteName: 'okomeのおへや',
   tagline: '好きなものを、好きなだけ。',
-  siteDescription: '好きなものを、好きなだけ。okomeの記録や作品を集めたおへや。',
+  siteDescription: 'okomeが趣味の記録や作ったものを公開する個人サイトです。',
+  aboutIntro:
+    '気になったことを調べたり、思いついたものを作ってみたり。その記録や作品を、夜の秘密基地をイメージしたこのおへやに、自分のペースで並べていきます。',
+  aboutExhibits: '展示をのぞいてみる',
   skipToContent: '本文へスキップ',
   menu: 'メニュー',
   siteNavigation: 'サイト内',
@@ -92,7 +95,11 @@ export const messages: Record<Locale, typeof ja> = {
   en: {
     siteName: "okome's Room",
     tagline: 'All the things I love, in my own way.',
-    siteDescription: 'All the things I love, in my own way. A room for okome’s notes and projects.',
+    siteDescription:
+      'I’m okome, and this is my personal site for sharing hobby notes and projects.',
+    aboutIntro:
+      'I follow my curiosity, look things up, and try out ideas. This room is my hideout after dark, where I can share what I learn and make at my own pace.',
+    aboutExhibits: 'Explore the exhibits',
     skipToContent: 'Skip to content',
     menu: 'Menu',
     siteNavigation: 'Site navigation',
