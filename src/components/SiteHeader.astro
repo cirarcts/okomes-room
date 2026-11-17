@@ -1,5 +1,5 @@
 ---
-import { isActivePath, NAV_ITEMS } from '../lib/navigation';
+import { ABOUT_ITEM, isActivePath, NAV_ITEMS } from '../lib/navigation';
 import { getPageLocale, localizedPath, locales } from '../lib/locale';
 import { messages } from '../lib/messages';
 
@@ -54,7 +54,7 @@ const isHome = isActivePath(currentPath, '/');
           data-nav
         >
           <ul class="flex flex-col max-md:px-4 max-md:py-2 md:flex-row md:gap-1">
-            {NAV_ITEMS.map((item) => {
+            {[...NAV_ITEMS, ABOUT_ITEM].map((item) => {
               const isCurrent = isActivePath(currentPath, item.href);
               return (
                 <li>
