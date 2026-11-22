@@ -214,23 +214,7 @@ const navIconClass =
             data-msg-playback={t.errorPlayback}
             hidden
           >
-            <div class="flex flex-wrap items-center gap-3">
-              <label class="inline-flex min-h-11 cursor-pointer items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  role="switch"
-                  class="peer sr-only"
-                  data-player-autoplay
-                  checked
-                />
-                <span
-                  class="bg-surface border-muted/40 peer-checked:border-accent/70 peer-checked:bg-accent/20 peer-focus-visible:outline-accent relative h-6 w-11 rounded-full border transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 after:absolute after:top-0.5 after:left-0.5 after:size-4.5 after:rounded-full after:bg-current after:transition-transform peer-checked:after:translate-x-5"
-                  aria-hidden="true"
-                ></span>
-                {t.autoAdvance}
-              </label>
-            </div>
-            {/* 再生方法と繰り返し。設定はブラウザに保存しない（連続再生と同じ）。 */}
+            {/* 再生方法と繰り返し。設定はブラウザに保存しない。 */}
             <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
               <fieldset class="flex flex-wrap items-center gap-2">
                 <legend class="text-muted float-left mr-1 text-sm">{t.playOrder}</legend>
@@ -542,7 +526,7 @@ const navIconClass =
     type VideoKind,
   } from '../lib/videoShelf';
 
-  // 再生ステージ（前へ・次へ、連続再生、再生できない動画の処理）。
+  // 再生ステージ（前へ・次へ、連続再生、再生できない動画の処理）。連続再生は常にON。
   initVideoShelfPlayer();
 
   // タイトル・チャンネル名での検索と、種別・カテゴリでの絞り込み。

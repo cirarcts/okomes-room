@@ -6,7 +6,7 @@
  *   「過去の動画を見る」で開いていない動画は、画面に出ていなくても再生の対象にする。
  * - 再生方法は「棚の順」と「ランダム」。ランダムでは棚の動画を1周ずつシャッフルし、1周の中で同じ動画を
  *   繰り返さない。「繰り返す」がONなら、棚の最後で最初に戻る（ランダムでは混ぜ直し、直前の動画は続けない）。
- * - 連続再生がONのときは、動画の終了後に次へ進む。自動で再生するのは、プレイヤーの半分を超えて
+ * - 連続再生は常にON。動画の終了後に次へ進む。自動で再生するのは、プレイヤーの半分を超えて
  *   見えていて、かつタブが表示中の場合だけ（規約 RMF）。それ以外は準備だけしてユーザーの操作を待つ。
  */
 import { VIDEO_ID_PATTERN } from './videoShelf';
@@ -50,7 +50,6 @@ export function initVideoShelfPlayer(): void {
   const prevButton = query<HTMLButtonElement>(document, '[data-player-prev]');
   const nextButton = query<HTMLButtonElement>(document, '[data-player-next]');
   const positionEl = query<HTMLElement>(document, '[data-player-position]');
-  const autoToggle = query<HTMLInputElement>(document, '[data-player-autoplay]');
   const repeatToggle = query<HTMLInputElement>(document, '[data-player-repeat]');
   const orderInputs = Array.from(
     document.querySelectorAll<HTMLInputElement>('[data-player-order]'),
@@ -79,8 +78,6 @@ export function initVideoShelfPlayer(): void {
   let currentId: string | undefined;
   let player: YouTubePlayer | undefined;
   let playerReady: Promise<YouTubePlayer | undefined> | undefined;
-  // 連続再生は初期ON（自動で再生するのは canAutoplay の条件を満たすときだけ）。
-  let autoAdvance = true;
   let playOrder: PlayOrder = 'ordered';
   let repeat = false;
   // ランダム再生中の1周分の再生順（棚の動画IDのシャッフル）。
@@ -288,7 +285,7 @@ export function initVideoShelfPlayer(): void {
 
   const handleStateChange = (state: number) => {
     if (state === PlayerState.PLAYING && currentId) clearUnplayable(currentId);
-    if (state === PlayerState.ENDED && autoAdvance) advance();
+    if (state === PlayerState.ENDED) advance();
   };
 
   const handleError = (code: number) => {
@@ -296,8 +293,7 @@ export function initVideoShelfPlayer(): void {
     markUnplayable(currentId);
     const message = errorMessage(classifyPlayerError(code));
     updateControls();
-    if (autoAdvance) advance(message);
-    else setMessage(message);
+    advance(message);
   };
 
   const ensurePlayer = (iframe: HTMLIFrameElement) => {
@@ -404,9 +400,6 @@ export function initVideoShelfPlayer(): void {
     next.apply?.();
     load(next.id, 'play', { message: [next.notice] });
   });
-  autoToggle?.addEventListener('change', () => {
-    autoAdvance = autoToggle.checked;
-  });
   repeatToggle?.addEventListener('change', () => {
     repeat = repeatToggle.checked;
     updateControls();
@@ -425,7 +418,6 @@ export function initVideoShelfPlayer(): void {
 
   // JavaScriptが使えるときだけステージを出す。動画が選ばれるまでは案内を表示したままにする。
   // ブラウザが戻ったときに復元するフォームの状態は使わず、初期値に揃える。
-  if (autoToggle) autoToggle.checked = true;
   if (repeatToggle) repeatToggle.checked = false;
   for (const input of orderInputs) input.checked = input.value === 'ordered';
   stage.hidden = false;
