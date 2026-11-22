@@ -79,7 +79,8 @@ export function initVideoShelfPlayer(): void {
   let currentId: string | undefined;
   let player: YouTubePlayer | undefined;
   let playerReady: Promise<YouTubePlayer | undefined> | undefined;
-  let autoAdvance = false;
+  // 連続再生は初期ON（自動で再生するのは canAutoplay の条件を満たすときだけ）。
+  let autoAdvance = true;
   let playOrder: PlayOrder = 'ordered';
   let repeat = false;
   // ランダム再生中の1周分の再生順（棚の動画IDのシャッフル）。
@@ -357,6 +358,8 @@ export function initVideoShelfPlayer(): void {
     }
     showCurrent(card);
     if (controls) controls.hidden = false;
+    if (prevButton) prevButton.hidden = false;
+    if (nextButton) nextButton.hidden = false;
     updateControls();
   }
 
@@ -422,7 +425,7 @@ export function initVideoShelfPlayer(): void {
 
   // JavaScriptが使えるときだけステージを出す。動画が選ばれるまでは案内を表示したままにする。
   // ブラウザが戻ったときに復元するフォームの状態は使わず、初期値に揃える。
-  if (autoToggle) autoToggle.checked = false;
+  if (autoToggle) autoToggle.checked = true;
   if (repeatToggle) repeatToggle.checked = false;
   for (const input of orderInputs) input.checked = input.value === 'ordered';
   stage.hidden = false;
