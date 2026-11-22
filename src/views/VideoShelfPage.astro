@@ -166,7 +166,10 @@ const hasApiData = uploadsById.size > 0;
           class="border-muted/20 grid gap-3 border-t pt-3"
           data-player-controls
           data-msg-position={t.queuePosition}
+          data-msg-position-shuffle={t.queuePositionShuffle}
           data-msg-queue-end={t.queueEnd}
+          data-msg-queue-repeat={t.queueRepeat}
+          data-msg-queue-reshuffle={t.queueReshuffle}
           data-msg-cued={t.nextCued}
           data-msg-autoplay-blocked={t.autoplayBlocked}
           data-msg-not-found={t.errorNotFound}
@@ -201,6 +204,40 @@ const hasApiData = uploadsById.size > 0;
                 aria-hidden="true"
               ></span>
               {t.autoAdvance}
+            </label>
+          </div>
+          {/* 再生方法と繰り返し。設定はブラウザに保存しない（連続再生と同じ）。 */}
+          <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <fieldset class="flex flex-wrap items-center gap-2">
+              <legend class="text-muted float-left mr-1 text-sm">{t.playOrder}</legend>
+              {(
+                [
+                  ['ordered', t.playOrdered],
+                  ['shuffle', t.playShuffle],
+                ] as const
+              ).map(([value, label]) => (
+                <label class="cursor-pointer">
+                  <input
+                    type="radio"
+                    name="video-shelf-play-order"
+                    value={value}
+                    class="peer sr-only"
+                    data-player-order
+                    checked={value === 'ordered'}
+                  />
+                  <span class="bg-surface border-muted/30 peer-checked:border-accent/70 peer-checked:bg-accent/15 peer-checked:text-fg text-muted peer-focus-visible:outline-accent hover:border-accent/60 inline-flex min-h-11 items-center rounded-full border px-4 text-sm transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2">
+                    {label}
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+            <label class="inline-flex min-h-11 cursor-pointer items-center gap-2 text-sm">
+              <input type="checkbox" role="switch" class="peer sr-only" data-player-repeat />
+              <span
+                class="bg-surface border-muted/40 peer-checked:border-accent/70 peer-checked:bg-accent/20 peer-focus-visible:outline-accent relative h-6 w-11 rounded-full border transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 after:absolute after:top-0.5 after:left-0.5 after:size-4.5 after:rounded-full after:bg-current after:transition-transform peer-checked:after:translate-x-5"
+                aria-hidden="true"
+              ></span>
+              {t.repeatQueue}
             </label>
           </div>
           <p class="text-muted text-xs" aria-live="polite" data-player-position></p>

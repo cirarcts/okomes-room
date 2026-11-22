@@ -65,6 +65,58 @@ export function queuePosition(
   return index === -1 ? undefined : { index: index + 1, total: queue.videoIds.length };
 }
 
+/** 再生方法。`ordered` は棚の並び順、`shuffle` はランダム。 */
+export type PlayOrder = 'ordered' | 'shuffle';
+
+/** 棚の中で、先頭から最初に再生できる動画ID。すべて飛ばす対象なら `undefined`。 */
+export function findFirstPlayable(
+  queue: VideoQueue,
+  { skip }: QueueStepOptions = {},
+): string | undefined {
+  return queue.videoIds.find((id) => !skip?.has(id));
+}
+
+export interface ShuffleOptions {
+  /** 0以上1未満の乱数を返す関数（テストで差し替える） */
+  random?: () => number;
+  /** 先頭に固定する動画ID（ユーザーが選んだ動画から始める場合） */
+  first?: string;
+  /**
+   * 最初に再生される位置に来てほしくない動画ID（周回の境目で、直前の動画が続かないようにする）。
+   * 再生できる動画がほかにある場合だけ避ける。
+   */
+  avoidFirst?: string;
+  /** 再生できない動画（`avoidFirst` の判定で、最初に再生される位置を求めるのに使う） */
+  skip?: ReadonlySet<string>;
+}
+
+/**
+ * 棚の動画をシャッフルした再生順を返す（Fisher–Yates）。
+ * 同じ動画が棚に重複していても、1周の中では1回だけにする。
+ */
+export function shuffleVideoIds(
+  videoIds: readonly string[],
+  { random = Math.random, first, avoidFirst, skip }: ShuffleOptions = {},
+): string[] {
+  const ids = [...new Set(videoIds)].filter((id) => id !== first);
+  for (let index = ids.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(random() * (index + 1));
+    [ids[index], ids[swap]] = [ids[swap], ids[index]];
+  }
+  if (first !== undefined && videoIds.includes(first)) ids.unshift(first);
+
+  if (avoidFirst !== undefined && avoidFirst !== first) {
+    const playable = (id: string) => !skip?.has(id);
+    const head = ids.findIndex(playable);
+    if (head !== -1 && ids[head] === avoidFirst) {
+      // 次に再生できる動画と入れ替える。ほかに再生できる動画がなければそのまま（同じ動画を繰り返す）。
+      const other = ids.findIndex((id, index) => index > head && playable(id));
+      if (other !== -1) [ids[head], ids[other]] = [ids[other], ids[head]];
+    }
+  }
+  return ids;
+}
+
 /**
  * 要素が画面内に見えている面積の割合（0〜1）。
  * @param rect 要素の位置と大きさ（`getBoundingClientRect()` の値）
