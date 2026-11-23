@@ -104,6 +104,8 @@ function pickCard(video: ShelfItem) {
     publishedAt: video.publishedAt,
     thumbnailUrl: youtubeThumbnailUrl(video.id, 'mqdefault'),
     channelName: video.channelData.name,
+    channel: video.channelData.id,
+    manualTitle: true,
     channelUrl: youtubeChannelUrl(video.channelData.channelId),
     kind: video.kind,
     categories: video.channelData.categories,
@@ -117,6 +119,8 @@ function playlistCard(item: Playlist['items'][number]) {
     title: item.title,
     thumbnailUrl: youtubeThumbnailUrl(item.videoId, 'mqdefault'),
     channelName: item.channelData.name,
+    channel: item.channelData.id,
+    manualTitle: true,
     channelUrl: youtubeChannelUrl(item.channelData.channelId),
     categories: item.channelData.categories,
     playlistItem: {
@@ -140,6 +144,7 @@ function uploadCard(
     publishedAt: video.publishedAt,
     thumbnailUrl: video.thumbnailUrl ?? youtubeThumbnailUrl(video.id, 'mqdefault'),
     channelName: channel.name,
+    channel: channel.id,
     channelUrl: youtubeChannelUrl(channel.channelId),
     kind: video.kind,
     durationSeconds: video.durationSeconds,
@@ -358,6 +363,61 @@ const navIconClass =
               <ol class="grid gap-1 px-2 pb-2 empty:hidden" data-player-upnext-list></ol>
               <p class="text-muted px-3 pb-3 text-xs empty:hidden" data-player-upnext-note></p>
             </details>
+            {import.meta.env.DEV && (
+              // 区間の記録（開発環境のみ。本番のビルドには含めない）。開発者向けのため日本語だけ。
+              <section
+                class="border-warm/40 grid gap-3 rounded-lg border border-dashed p-3"
+                aria-labelledby="segment-recorder-title"
+                data-segment-recorder
+              >
+                <h2 id="segment-recorder-title" class="text-warm text-sm font-semibold">
+                  区間の記録（開発環境のみ）
+                </h2>
+                <p class="text-muted text-xs">
+                  再生中に「開始を記録」「終了を記録」を押すと、playlists.json の items
+                  に貼れる形にします。タイトルは手動で記入したものだけを書き写します。
+                </p>
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    class="bg-surface border-muted/30 hover:border-accent/60 inline-flex min-h-11 items-center rounded-full border px-4 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                    data-segment-start
+                  >
+                    開始を記録
+                  </button>
+                  <button
+                    type="button"
+                    class="bg-surface border-muted/30 hover:border-accent/60 inline-flex min-h-11 items-center rounded-full border px-4 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                    data-segment-end
+                  >
+                    終了を記録
+                  </button>
+                  <button
+                    type="button"
+                    class="bg-surface border-muted/30 hover:border-accent/60 inline-flex min-h-11 items-center rounded-full border px-4 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                    data-segment-copy
+                    disabled
+                  >
+                    コピー
+                  </button>
+                  <button
+                    type="button"
+                    class="bg-surface border-muted/30 hover:border-accent/60 inline-flex min-h-11 items-center rounded-full border px-4 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                    data-segment-clear
+                  >
+                    クリア
+                  </button>
+                </div>
+                <p class="text-muted text-xs" aria-live="polite" data-segment-status></p>
+                <textarea
+                  class="bg-subtle border-muted/30 w-full rounded-md border p-2 font-mono text-xs"
+                  rows="8"
+                  readonly
+                  aria-label="playlists.json に貼る項目"
+                  data-segment-output
+                ></textarea>
+              </section>
+            )}
           </div>
         </div>
       </div>
@@ -662,7 +722,14 @@ const navIconClass =
   } from '../lib/videoShelf';
 
   // 再生ステージ（前へ・次へ、連続再生、再生できない動画の処理）。連続再生は常にON。
-  initVideoShelfPlayer();
+  const player = initVideoShelfPlayer();
+
+  // 区間の記録は開発環境だけで読み込む（本番のビルドでは、この分岐ごと取り除かれる）。
+  if (import.meta.env.DEV) {
+    void import('../lib/videoSegmentRecorder').then(({ initSegmentRecorder }) =>
+      initSegmentRecorder(player),
+    );
+  }
 
   // タイトル・チャンネル名での検索と、種別・カテゴリでの絞り込み。
   const filter = document.querySelector<HTMLElement>('#video-filter');

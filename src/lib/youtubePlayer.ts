@@ -29,6 +29,8 @@ export interface YouTubePlayer {
   loadVideoById(request: VideoRequest): void;
   cueVideoById(request: VideoRequest): void;
   playVideo(): void;
+  /** 再生位置（秒）。 */
+  getCurrentTime(): number;
   destroy(): void;
 }
 

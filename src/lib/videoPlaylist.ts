@@ -80,6 +80,44 @@ export function isSegment(item: Pick<PlaylistItem, 'startSeconds' | 'endSeconds'
   return item.startSeconds !== undefined || item.endSeconds !== undefined;
 }
 
+export interface SegmentDraft {
+  video: string;
+  channel: string;
+  /** 手動で記入したタイトル。わからない場合は空にして、YouTubeで確認して記入してもらう */
+  title?: string;
+  /** 開始（秒、小数可）。0なら書かない */
+  startSeconds: number;
+  /** 終了（秒、小数可）。省略時は最後まで */
+  endSeconds?: number;
+}
+
+/**
+ * 記録した区間を、`playlists.json` の項目として貼れるJSONにする（開発環境の区間の記録で使う）。
+ * 開始は切り捨て、終了は切り上げて秒にそろえる（記録した瞬間を区間に含めるため）。
+ * 終了が開始より後でなければエラー。
+ */
+export function segmentDraftJson(draft: SegmentDraft): string {
+  if (!Number.isFinite(draft.startSeconds) || draft.startSeconds < 0) {
+    throw new Error('開始の時刻が正しくありません。');
+  }
+  const start = Math.floor(draft.startSeconds);
+  const end = draft.endSeconds === undefined ? undefined : Math.ceil(draft.endSeconds);
+  if (
+    draft.endSeconds !== undefined &&
+    (!Number.isFinite(draft.endSeconds) || draft.endSeconds <= draft.startSeconds)
+  ) {
+    throw new Error('終了は開始より後にしてください。');
+  }
+  const item: PlaylistItemInput = {
+    video: draft.video,
+    channel: draft.channel,
+    title: draft.title ?? '',
+    ...(start > 0 ? { start: formatDuration(start) } : {}),
+    ...(end !== undefined ? { end: formatDuration(end) } : {}),
+  };
+  return JSON.stringify(item, null, 2);
+}
+
 /** 区間の表示（例：`12:30〜18:45`、`1:05:10〜`）。全編なら `undefined`。 */
 export function formatSegment(
   item: Pick<PlaylistItem, 'startSeconds' | 'endSeconds'>,
