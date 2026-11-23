@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { classifyPlayerError } from './youtubePlayer';
+import { buildEmbedUrl, classifyPlayerError } from './youtubePlayer';
 
 describe('classifyPlayerError', () => {
   it.each([
@@ -87,5 +87,38 @@ describe('attachPlayer', () => {
     const assertion = expect(attached).rejects.toThrow(/時間内/);
     await vi.advanceTimersByTimeAsync(15_000);
     await assertion;
+  });
+});
+
+describe('buildEmbedUrl', () => {
+  const base = { embedBaseUrl: 'https://www.youtube-nocookie.com/embed/', videoId: 'aaaaaaaaaaa' };
+
+  it('IFrame API用のパラメータと送信元を付ける', () => {
+    const url = new URL(buildEmbedUrl({ ...base, autoplay: false }, 'https://example.com'));
+    expect(url.pathname).toBe('/embed/aaaaaaaaaaa');
+    expect(url.searchParams.get('enablejsapi')).toBe('1');
+    expect(url.searchParams.get('origin')).toBe('https://example.com');
+    expect(url.searchParams.has('autoplay')).toBe(false);
+    expect(url.searchParams.has('start')).toBe(false);
+    expect(url.searchParams.has('end')).toBe(false);
+  });
+
+  it('自動再生と区間を指定できる', () => {
+    const url = new URL(
+      buildEmbedUrl(
+        { ...base, autoplay: true, startSeconds: 750, endSeconds: 1125 },
+        'https://example.com',
+      ),
+    );
+    expect(url.searchParams.get('autoplay')).toBe('1');
+    expect(url.searchParams.get('start')).toBe('750');
+    expect(url.searchParams.get('end')).toBe('1125');
+  });
+
+  it('開始が0秒でもパラメータを付ける', () => {
+    const url = new URL(
+      buildEmbedUrl({ ...base, autoplay: false, startSeconds: 0 }, 'https://example.com'),
+    );
+    expect(url.searchParams.get('start')).toBe('0');
   });
 });

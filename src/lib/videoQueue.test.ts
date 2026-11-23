@@ -6,12 +6,12 @@ import {
   findNext,
   findPrevious,
   queuePosition,
-  shuffleVideoIds,
+  shuffleQueueKeys,
   visibleRatioOf,
   type VideoQueue,
 } from './videoQueue';
 
-const queue: VideoQueue = { id: 'shelf', label: '棚', videoIds: ['a', 'b', 'c', 'd'] };
+const queue: VideoQueue = { id: 'shelf', label: '棚', keys: ['a', 'b', 'c', 'd'] };
 
 describe('findNext / findPrevious', () => {
   it('前後の動画を返す', () => {
@@ -44,13 +44,13 @@ describe('findNext / findPrevious', () => {
   });
 
   it('同じ動画が重複していても、今の動画には戻らない', () => {
-    const duplicated: VideoQueue = { ...queue, videoIds: ['a', 'a', 'b'] };
+    const duplicated: VideoQueue = { ...queue, keys: ['a', 'a', 'b'] };
     expect(findNext(duplicated, 'a')).toBe('b');
     expect(findPrevious(duplicated, 'b')).toBe('a');
   });
 
   it('空の棚では移動しない', () => {
-    expect(findNext({ ...queue, videoIds: [] }, 'a')).toBeUndefined();
+    expect(findNext({ ...queue, keys: [] }, 'a')).toBeUndefined();
   });
 });
 
@@ -109,36 +109,36 @@ describe('findFirstPlayable', () => {
   });
 
   it('すべて飛ばす対象、または空の棚なら undefined', () => {
-    expect(findFirstPlayable(queue, { skip: new Set(queue.videoIds) })).toBeUndefined();
-    expect(findFirstPlayable({ ...queue, videoIds: [] })).toBeUndefined();
+    expect(findFirstPlayable(queue, { skip: new Set(queue.keys) })).toBeUndefined();
+    expect(findFirstPlayable({ ...queue, keys: [] })).toBeUndefined();
   });
 });
 
-describe('shuffleVideoIds', () => {
+describe('shuffleQueueKeys', () => {
   // 常に0を返す乱数では、Fisher–Yatesは [a, b, c, d] → [b, c, d, a] になる。
   const zero = () => 0;
   // 0.999… を返す乱数では、入れ替えが起きず元の順のままになる。
   const keep = () => 0.999;
 
   it('乱数に従って並べ替え、すべての動画を1回ずつ含む', () => {
-    expect(shuffleVideoIds(queue.videoIds, { random: zero })).toEqual(['b', 'c', 'd', 'a']);
-    expect(shuffleVideoIds(queue.videoIds, { random: keep })).toEqual(['a', 'b', 'c', 'd']);
-    const shuffled = shuffleVideoIds(queue.videoIds);
+    expect(shuffleQueueKeys(queue.keys, { random: zero })).toEqual(['b', 'c', 'd', 'a']);
+    expect(shuffleQueueKeys(queue.keys, { random: keep })).toEqual(['a', 'b', 'c', 'd']);
+    const shuffled = shuffleQueueKeys(queue.keys);
     expect([...shuffled].sort()).toEqual(['a', 'b', 'c', 'd']);
   });
 
   it('元の配列を変更しない', () => {
     const ids = ['a', 'b', 'c'];
-    shuffleVideoIds(ids, { random: zero });
+    shuffleQueueKeys(ids, { random: zero });
     expect(ids).toEqual(['a', 'b', 'c']);
   });
 
   it('重複した動画は1回だけにする', () => {
-    expect(shuffleVideoIds(['a', 'b', 'a', 'c'], { random: keep })).toEqual(['a', 'b', 'c']);
+    expect(shuffleQueueKeys(['a', 'b', 'a', 'c'], { random: keep })).toEqual(['a', 'b', 'c']);
   });
 
   it('first に指定した動画を先頭に固定し、残りをシャッフルする', () => {
-    expect(shuffleVideoIds(queue.videoIds, { random: zero, first: 'c' })).toEqual([
+    expect(shuffleQueueKeys(queue.keys, { random: zero, first: 'c' })).toEqual([
       'c',
       'b',
       'd',
@@ -147,7 +147,7 @@ describe('shuffleVideoIds', () => {
   });
 
   it('棚にない動画は first に指定しても加えない', () => {
-    expect(shuffleVideoIds(queue.videoIds, { random: keep, first: 'x' })).toEqual([
+    expect(shuffleQueueKeys(queue.keys, { random: keep, first: 'x' })).toEqual([
       'a',
       'b',
       'c',
@@ -156,7 +156,7 @@ describe('shuffleVideoIds', () => {
   });
 
   it('avoidFirst の動画が先頭に来たら、次の動画と入れ替える', () => {
-    expect(shuffleVideoIds(queue.videoIds, { random: keep, avoidFirst: 'a' })).toEqual([
+    expect(shuffleQueueKeys(queue.keys, { random: keep, avoidFirst: 'a' })).toEqual([
       'b',
       'a',
       'c',
@@ -166,7 +166,7 @@ describe('shuffleVideoIds', () => {
 
   it('avoidFirst は、飛ばす動画を除いた最初の再生位置で判定する', () => {
     const skip = new Set(['a', 'b']);
-    expect(shuffleVideoIds(queue.videoIds, { random: keep, avoidFirst: 'c', skip })).toEqual([
+    expect(shuffleQueueKeys(queue.keys, { random: keep, avoidFirst: 'c', skip })).toEqual([
       'a',
       'b',
       'd',
@@ -175,9 +175,9 @@ describe('shuffleVideoIds', () => {
   });
 
   it('ほかに再生できる動画がなければ、avoidFirst の動画をそのまま先頭にする', () => {
-    expect(shuffleVideoIds(['a'], { avoidFirst: 'a' })).toEqual(['a']);
+    expect(shuffleQueueKeys(['a'], { avoidFirst: 'a' })).toEqual(['a']);
     const skip = new Set(['b', 'c', 'd']);
-    expect(shuffleVideoIds(queue.videoIds, { random: keep, avoidFirst: 'a', skip })).toEqual([
+    expect(shuffleQueueKeys(queue.keys, { random: keep, avoidFirst: 'a', skip })).toEqual([
       'a',
       'b',
       'c',
@@ -187,11 +187,11 @@ describe('shuffleVideoIds', () => {
 
   it('何度シャッフルしても、avoidFirst の動画が最初に再生されない', () => {
     for (let trial = 0; trial < 200; trial += 1) {
-      expect(shuffleVideoIds(queue.videoIds, { avoidFirst: 'b' })[0]).not.toBe('b');
+      expect(shuffleQueueKeys(queue.keys, { avoidFirst: 'b' })[0]).not.toBe('b');
     }
   });
 
   it('空の棚では空の配列を返す', () => {
-    expect(shuffleVideoIds([])).toEqual([]);
+    expect(shuffleQueueKeys([])).toEqual([]);
   });
 });

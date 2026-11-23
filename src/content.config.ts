@@ -5,6 +5,7 @@ import { z } from 'astro/zod';
 import videoChannelsJson from './content/video-shelf/channels.json';
 import { EFFECT_CATEGORIES } from './lib/kemperEffectCategories';
 import { CHANNEL_ID_PATTERN, VIDEO_ID_PATTERN, VIDEO_KINDS } from './lib/videoShelf';
+import { TIMESTAMP_PATTERN } from './lib/videoPlaylist';
 import { MAX_UPLOADS_PER_KIND, fetchChannelUploads } from './lib/youtubeUploads';
 
 const setting = z.object({
@@ -190,10 +191,41 @@ const shelfVideos = defineCollection({
   }),
 });
 
+// 動画の棚：手動のプレイリスト（全編・区間）。動画の情報はすべて手動で記入し、APIのデータは結び付けない。
+const timestamp = z
+  .string()
+  .regex(TIMESTAMP_PATTERN, '時刻は ss・m:ss・h:mm:ss のいずれかで指定してください（例：12:30）。');
+
+const videoPlaylists = defineCollection({
+  loader: file('./src/content/video-shelf/playlists.json'),
+  schema: z.object({
+    id: z
+      .string()
+      .regex(SLUG_PATTERN, 'プレイリストのidは英小文字・数字・ハイフンで指定してください。'),
+    name: z.string().min(1),
+    nameEn: z.string().min(1),
+    // 小さいほど上に並べる。
+    order: z.number().int().default(0),
+    items: z
+      .array(
+        z.object({
+          video: z.string().regex(VIDEO_ID_PATTERN, '動画IDは11文字です。'),
+          channel: z.string().regex(SLUG_PATTERN),
+          title: z.string().min(1),
+          start: timestamp.optional(),
+          end: timestamp.optional(),
+          note: z.string().min(1).optional(),
+        }),
+      )
+      .min(1),
+  }),
+});
+
 export const collections = {
   kemperRigs,
   videoCategories,
   videoChannels,
   shelfVideos,
+  videoPlaylists,
   channelUploads,
 };

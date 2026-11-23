@@ -7,6 +7,7 @@ import VideoCard from '../components/video-shelf/VideoCard.astro';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getPageLocale, localizedPath } from '../lib/locale';
 import { messages } from '../lib/messages';
+import { buildPlaylist, sortPlaylists, type Playlist } from '../lib/videoPlaylist';
 import {
   EMBED_BASE_URL,
   buildShelf,
@@ -51,6 +52,12 @@ if (misplacedPicks.length > 0) {
   );
 }
 
+// 手動のプレイリスト。動画の情報はすべて手動で記入したもので、チャンネルをまたいで並べる（API Dataではないため）。
+const playlists = sortPlaylists(
+  (await getCollection('videoPlaylists')).map(({ data }) => buildPlaylist(data, channels)),
+).filter((playlist) => playlist.items.length > 0);
+const playlistName = (playlist: Playlist) => (locale === 'en' ? playlist.nameEn : playlist.name);
+
 // チャンネルの新着：ビルド時に自動取得したデータ。規約に合わせてチャンネルごとに分けて表示する。
 const uploadsById = new Map(
   (await getCollection('channelUploads')).map(({ data }) => [data.channel, data]),
@@ -78,6 +85,24 @@ function pickCard(video: ShelfItem) {
   };
 }
 
+function playlistCard(item: Playlist['items'][number]) {
+  return {
+    locale,
+    videoId: item.videoId,
+    title: item.title,
+    thumbnailUrl: youtubeThumbnailUrl(item.videoId, 'mqdefault'),
+    channelName: item.channelData.name,
+    channelUrl: youtubeChannelUrl(item.channelData.channelId),
+    categories: item.channelData.categories,
+    playlistItem: {
+      key: item.key,
+      startSeconds: item.startSeconds,
+      endSeconds: item.endSeconds,
+      note: item.note,
+    },
+  };
+}
+
 function uploadCard(
   channel: ShelfChannel,
   video: Uploads['videos'][number] | NonNullable<Uploads['popular']>[number],
@@ -99,6 +124,7 @@ function uploadCard(
 
 // 再生ステージは、動画を選ぶまで案内だけを表示する（初期表示の動画は決めない）。
 const hasVideos =
+  playlists.length > 0 ||
   fanPicks.length > 0 ||
   fanShelves.some(({ uploads }) => uploads.videos.length > 0) ||
   ownerPopular.length > 0 ||
@@ -335,6 +361,33 @@ const navIconClass =
           data-count={t.matchingVideos}
         ></p>
       </div>
+    )}
+
+    {playlists.length > 0 && (
+      <section aria-labelledby="playlists-title" class="mb-12 grid gap-8" data-filter-group>
+        <h2 id="playlists-title" class="text-xl font-semibold">
+          {t.playlists}
+        </h2>
+        {playlists.map((playlist) => (
+          <section
+            aria-labelledby={`playlist-${playlist.id}-title`}
+            class="border-accent/30 grid min-w-0 gap-3 border-l-2 pl-4"
+            data-filter-group
+          >
+            <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+              <h3 id={`playlist-${playlist.id}-title`} class="font-semibold">
+                {playlistName(playlist)}
+              </h3>
+              <p class="text-muted text-xs">{countLabel(playlist.items.length)}</p>
+            </div>
+            <ShelfRow
+              queueId={`playlist-${playlist.id}`}
+              label={playlistName(playlist)}
+              items={playlist.items.map(playlistCard)}
+            />
+          </section>
+        ))}
+      </section>
     )}
 
     {fanPicks.length > 0 && (

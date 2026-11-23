@@ -178,8 +178,9 @@ export function buildShelf(
   );
 }
 
-export function youtubeWatchUrl(videoId: string): string {
-  return `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`;
+export function youtubeWatchUrl(videoId: string, startSeconds?: number): string {
+  const url = `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`;
+  return startSeconds ? `${url}&t=${startSeconds}s` : url;
 }
 
 /** 棚に最初から並べる本数。 */

@@ -18,9 +18,16 @@ export const PlayerState = {
 } as const;
 
 /** 使う範囲だけを宣言した YT.Player の型（`@types/youtube` は追加しない）。 */
+/** `loadVideoById` / `cueVideoById` のオブジェクト形式の引数（公式の定義）。区間は秒で指定する。 */
+export interface VideoRequest {
+  videoId: string;
+  startSeconds?: number;
+  endSeconds?: number;
+}
+
 export interface YouTubePlayer {
-  loadVideoById(videoId: string): void;
-  cueVideoById(videoId: string): void;
+  loadVideoById(request: VideoRequest): void;
+  cueVideoById(request: VideoRequest): void;
   playVideo(): void;
   destroy(): void;
 }
@@ -88,21 +95,28 @@ export interface PlayerHandlers {
  * プライバシー強化モードのiframeを作り、`container` の中身と置き換える。
  * APIの読み込みに失敗しても、iframe自体は通常の埋め込みとして再生できる。
  */
-export function createPlayerFrame(options: {
+export interface PlayerFrameOptions {
   embedBaseUrl: string;
   videoId: string;
   title: string;
   autoplay: boolean;
-}): HTMLIFrameElement {
-  const params = new URLSearchParams({
-    enablejsapi: '1',
-    // IFrame API の推奨に従い、送信元を明示する。
-    origin: window.location.origin,
-  });
-  if (options.autoplay) params.set('autoplay', '1');
+  /** 区間の開始・終了（秒）。埋め込みの `start` / `end` パラメータ（公式）で指定する。 */
+  startSeconds?: number;
+  endSeconds?: number;
+}
 
+/** 埋め込みプレイヤーのURL。`origin` はサイトのオリジン（IFrame API の推奨に従い、送信元を明示する）。 */
+export function buildEmbedUrl(options: Omit<PlayerFrameOptions, 'title'>, origin: string): string {
+  const params = new URLSearchParams({ enablejsapi: '1', origin });
+  if (options.autoplay) params.set('autoplay', '1');
+  if (options.startSeconds !== undefined) params.set('start', String(options.startSeconds));
+  if (options.endSeconds !== undefined) params.set('end', String(options.endSeconds));
+  return `${options.embedBaseUrl}${encodeURIComponent(options.videoId)}?${params.toString()}`;
+}
+
+export function createPlayerFrame(options: PlayerFrameOptions): HTMLIFrameElement {
   const iframe = document.createElement('iframe');
-  iframe.src = `${options.embedBaseUrl}${encodeURIComponent(options.videoId)}?${params.toString()}`;
+  iframe.src = buildEmbedUrl(options, window.location.origin);
   iframe.title = options.title;
   iframe.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
   // プレイヤーの識別に Referer が必要（RMF）。抑制しない。
