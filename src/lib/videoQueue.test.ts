@@ -231,3 +231,84 @@ describe('upcomingKeys', () => {
     expect(upcomingKeys(long, 'a', { limit: 0 })).toEqual([]);
   });
 });
+
+describe('shuffleQueueKeys（重み付き）', () => {
+  const zero = () => 0;
+  // 乱数を順に返す（重み付きでは、項目ごとに1回ずつ乱数を使う）。
+  const sequence = (...values: number[]) => {
+    let index = 0;
+    return () => values[index++ % values.length];
+  };
+
+  it('同じ乱数なら、重い項目ほど前に来る', () => {
+    const weights = new Map([
+      ['b', 3],
+      ['d', 2],
+    ]);
+    expect(shuffleQueueKeys(queue.keys, { random: () => 0.5, weights })).toEqual([
+      'b',
+      'd',
+      'a',
+      'c',
+    ]);
+  });
+
+  it('乱数しだいで、軽い項目が前に来ることもある', () => {
+    const weights = new Map([['a', 2]]);
+    // a: -ln(0.01)/2 ≈ 2.30、b: -ln(0.9) ≈ 0.11
+    expect(shuffleQueueKeys(['a', 'b'], { random: sequence(0.99, 0.1), weights })).toEqual([
+      'b',
+      'a',
+    ]);
+  });
+
+  it('重みがすべて1なら、重みなしと同じ並びになる', () => {
+    const weights = new Map([
+      ['a', 1],
+      ['b', 1],
+    ]);
+    expect(shuffleQueueKeys(queue.keys, { random: zero, weights })).toEqual(
+      shuffleQueueKeys(queue.keys, { random: zero }),
+    );
+  });
+
+  it('正でない重みや数値でない重みは1として扱う', () => {
+    const weights = new Map([
+      ['a', 0],
+      ['b', -2],
+      ['c', Number.NaN],
+    ]);
+    expect(shuffleQueueKeys(queue.keys, { random: zero, weights })).toEqual(
+      shuffleQueueKeys(queue.keys, { random: zero }),
+    );
+  });
+
+  it('first・avoidFirst・重複の扱いは重みなしと同じ', () => {
+    const weights = new Map([['a', 5]]);
+    const keys = ['a', 'b', 'a', 'c'];
+    expect(shuffleQueueKeys(keys, { random: () => 0.5, weights, first: 'c' })).toEqual([
+      'c',
+      'a',
+      'b',
+    ]);
+    expect(shuffleQueueKeys(keys, { random: () => 0.5, weights, avoidFirst: 'a' })).toEqual([
+      'b',
+      'a',
+      'c',
+    ]);
+  });
+
+  it('重い項目ほど、周の先頭に来る確率が高い（重みに比例）', () => {
+    const weights = new Map([['a', 6]]);
+    const trials = 3000;
+    let first = 0;
+    for (let trial = 0; trial < trials; trial += 1) {
+      const result = shuffleQueueKeys(queue.keys, { weights });
+      expect([...result].sort()).toEqual(['a', 'b', 'c', 'd']);
+      if (result[0] === 'a') first += 1;
+    }
+    // 期待値は 6 / (6 + 1 + 1 + 1) ≈ 0.67。重みなしなら 0.25。
+    expect(first / trials).toBeGreaterThan(0.6);
+    expect(first / trials).toBeLessThan(0.74);
+  });
+});
