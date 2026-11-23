@@ -9,6 +9,13 @@ import { getPageLocale, localizedPath } from '../lib/locale';
 import { messages } from '../lib/messages';
 import { buildPlaylist, sortPlaylists, type Playlist } from '../lib/videoPlaylist';
 import {
+  CHANNEL_SHELF_ROWS,
+  PRESET_PARAM,
+  channelRowQueueId,
+  playlistQueueId,
+  validatePresets,
+} from '../lib/videoPreset';
+import {
   EMBED_BASE_URL,
   buildShelf,
   sortCategories,
@@ -53,10 +60,28 @@ if (misplacedPicks.length > 0) {
 }
 
 // 手動のプレイリスト。動画の情報はすべて手動で記入したもので、チャンネルをまたいで並べる（API Dataではないため）。
-const playlists = sortPlaylists(
-  (await getCollection('videoPlaylists')).map(({ data }) => buildPlaylist(data, channels)),
-).filter((playlist) => playlist.items.length > 0);
+const playlistInputs = (await getCollection('videoPlaylists')).map(({ data }) => data);
+const playlists = sortPlaylists(playlistInputs.map((data) => buildPlaylist(data, channels))).filter(
+  (playlist) => playlist.items.length > 0,
+);
 const playlistName = (playlist: Playlist) => (locale === 'en' ? playlist.nameEn : playlist.name);
+
+// 再生プリセット。対象は1つの棚。棚の存在はデータから確かめ、動画の取得に失敗して空になった棚は
+// ページ側で隠す（取得の失敗でビルドを止めないため）。
+const knownQueueIds = new Set<string>([
+  ...playlistInputs.map(({ id }) => playlistQueueId(id)),
+  'picks',
+  'owner-works',
+  ...activeChannels.flatMap((channel) =>
+    CHANNEL_SHELF_ROWS.map((row) => channelRowQueueId(channel.id, row)),
+  ),
+]);
+const presets = validatePresets(
+  (await getCollection('videoPresets')).map(({ data }) => data),
+  knownQueueIds,
+);
+const presetName = (preset: (typeof presets)[number]) =>
+  locale === 'en' ? preset.nameEn : preset.name;
 
 // チャンネルの新着：ビルド時に自動取得したデータ。規約に合わせてチャンネルごとに分けて表示する。
 const uploadsById = new Map(
@@ -170,6 +195,45 @@ const navIconClass =
     {hasVideos ? (
       // 再生ステージ。動画を選ぶまでは案内を表示する。JavaScriptが無効な場合は再生できないため、スクリプトで表示する。
       <div class="mb-10 grid gap-3" data-video-stage data-embed-base={EMBED_BASE_URL} hidden>
+        {presets.length > 0 && (
+          // 再生プリセット。リンク（?preset=…）なので、ブックマークや新しいタブでも開ける。
+          <div
+            class="mx-auto flex w-full max-w-4xl flex-wrap items-center gap-x-3 gap-y-2"
+            data-player-presets
+            data-msg-preset-cued={t.presetCued}
+            data-msg-preset-empty={t.presetEmpty}
+          >
+            <p id="video-presets-label" class="text-muted text-sm">
+              {t.presets}
+            </p>
+            <ul class="flex flex-wrap gap-2" aria-labelledby="video-presets-label">
+              {presets.map((preset) => (
+                <li>
+                  <a
+                    href={`?${PRESET_PARAM}=${preset.id}`}
+                    class="bg-surface border-muted/30 hover:border-accent/60 aria-[current=true]:border-accent/70 aria-[current=true]:bg-accent/15 inline-flex min-h-11 flex-wrap items-center gap-x-2 rounded-full border px-4 py-1 text-sm transition-colors"
+                    data-preset-link
+                    data-preset-id={preset.id}
+                    data-preset-name={presetName(preset)}
+                    data-preset-queue={preset.queue}
+                    data-preset-order={preset.playOrder}
+                    data-preset-repeat={preset.repeat ? 'true' : 'false'}
+                  >
+                    <span class="text-fg">{presetName(preset)}</span>
+                    <span class="text-muted text-xs">
+                      {[
+                        preset.playOrder === 'shuffle' ? t.playShuffle : t.playOrdered,
+                        preset.repeat ? t.presetRepeat : undefined,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {/*
           プレイヤーと前へ・次へ。広い画面ではプレイヤーの左右、狭い画面ではプレイヤーの下に並べる。
           ボタンはプレイヤーに重ねない（規約 RMF）。動画を選ぶまでは表示しない。
@@ -232,6 +296,9 @@ const navIconClass =
             data-msg-queue-end={t.queueEnd}
             data-msg-queue-repeat={t.queueRepeat}
             data-msg-queue-reshuffle={t.queueReshuffle}
+            data-msg-up-next-repeat={t.upNextRepeat}
+            data-msg-up-next-reshuffle={t.upNextReshuffle}
+            data-msg-up-next-end={t.upNextEnd}
             data-msg-cued={t.nextCued}
             data-msg-autoplay-blocked={t.autoplayBlocked}
             data-msg-not-found={t.errorNotFound}
@@ -276,6 +343,20 @@ const navIconClass =
             </div>
             <p class="text-muted text-xs" aria-live="polite" data-player-position></p>
             <p class="text-warm text-sm empty:hidden" role="status" data-player-message></p>
+            {/* 次に流れる動画（キュー表示）。押すとその動画へ移る。 */}
+            <details class="group border-muted/20 rounded-lg border" open data-player-upnext hidden>
+              <summary class="hover:text-fg flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-lg px-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+                <span
+                  class="text-accent text-xs transition-transform group-open:rotate-90 motion-reduce:transition-none"
+                  aria-hidden="true"
+                >
+                  ▶
+                </span>
+                {t.upNext}
+              </summary>
+              <ol class="grid gap-1 px-2 pb-2 empty:hidden" data-player-upnext-list></ol>
+              <p class="text-muted px-3 pb-3 text-xs empty:hidden" data-player-upnext-note></p>
+            </details>
           </div>
         </div>
       </div>
@@ -381,7 +462,7 @@ const navIconClass =
               <p class="text-muted text-xs">{countLabel(playlist.items.length)}</p>
             </div>
             <ShelfRow
-              queueId={`playlist-${playlist.id}`}
+              queueId={playlistQueueId(playlist.id)}
               label={playlistName(playlist)}
               items={playlist.items.map(playlistCard)}
             />

@@ -1,0 +1,10 @@
+[
+  {
+    "id": "die-gest-endless",
+    "name": "Dieジェスト集エンドレス",
+    "nameEn": "Die-gest Endless",
+    "queue": "playlist-die-gest",
+    "playOrder": "shuffle",
+    "repeat": true
+  }
+]

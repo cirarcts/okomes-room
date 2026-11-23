@@ -3,6 +3,7 @@ import type { ComponentProps } from 'astro/types';
 
 import type { Locale } from '../../lib/locale';
 import { messages } from '../../lib/messages';
+import { channelRowQueueId, type ChannelShelfRow } from '../../lib/videoPreset';
 import { SHELF_INITIAL_COUNT, youtubeChannelUrl, type ShelfChannel } from '../../lib/videoShelf';
 import ShelfRow from './ShelfRow.astro';
 
@@ -16,7 +17,13 @@ interface Props {
 const { channel, locale, items, variant } = Astro.props;
 const t = messages[locale];
 // `tab` はYouTubeのチャンネルページのタブ。棚の続き（取得範囲より古い動画）を見る先として案内する。
-const rows = [
+const rows: {
+  id: ChannelShelfRow;
+  title: string;
+  tab: string;
+  moreText: string;
+  items: Props['items'];
+}[] = [
   {
     id: 'uploads',
     title: t.uploadVideos,
@@ -43,7 +50,7 @@ const rows = [
 
 {rows.map(({ id, title, tab, moreText, items }) => {
   if (items.length === 0) return null;
-  const rowId = `${channel.id}-${id}`;
+  const rowId = channelRowQueueId(channel.id, id);
   const label = `${channel.name} · ${title}`;
   return (
     <section aria-labelledby={`${rowId}-heading`} class="grid min-w-0 gap-2" data-filter-group>

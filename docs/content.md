@@ -107,6 +107,28 @@ Gundy - Brown Soundは、Rig Manager 4.3.13 / PROFILER OS 14.2.2の表示と既�
 - 同じ動画の別の区間は別の項目として登録できます。同じ動画・同じ区間の重複はビルドが失敗します。
 - 動画IDや区間は、YouTube上で確認した値だけを記入します（推測で作らない）。
 
+### 再生プリセット（`presets.json`）
+
+```json
+[
+  {
+    "id": "die-gest-endless",
+    "name": "Dieジェスト集エンドレス",
+    "nameEn": "Die-gest Endless",
+    "order": 0,
+    "queue": "playlist-die-gest",
+    "playOrder": "shuffle",
+    "repeat": true
+  }
+]
+```
+
+- 1つの棚を、決めた再生方法で流すボタンです。動画の棚のページの再生ステージの上に並び、`?preset=<id>` のURLでも開けます。
+- `id` は固定slugです。`name` に日本語名、`nameEn` に英語名を記録します。`order` の小さい順に並びます（省略時は0）。
+- `queue` は対象の棚です。`playlist-<プレイリストのid>`、`picks`（おすすめ）、`<チャンネルのid>-uploads` / `-archives` / `-shorts`（チャンネルの新着の各棚）、`owner-works`（管理人の代表作）を指定できます。存在しない棚を指定するとビルドが失敗します。
+- `playOrder` は `ordered`（棚の順、省略時）か `shuffle`（ランダム）、`repeat` は最後まで再生したら繰り返すか（省略時は `false`）です。
+- 複数の棚をまとめたプリセットは作れません（APIで取得した棚をまたいで混ぜないため）。
+
 ### チャンネルの新着（自動取得）
 
 `YOUTUBE_API_KEY` が設定されている場合、`channels.json` の有効なチャンネルについて、YouTubeの「動画」「Shorts」「ライブ」の種類ごとに直近最大100本（`uploadsPerKind` で変更可）と、`videoKinds` に登録した動画をビルド時に取得します。チャンネル内では「投稿動画」「配信アーカイブ・プレミア」「Shorts」に分け、各棚の5本目以降は「過去の動画を見る」で12本ずつ展開します。表示できる動画がない棚は見出しやリンクごと省略します。取得したデータはGitに保存しません。
