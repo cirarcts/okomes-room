@@ -35,7 +35,14 @@ interface Props {
    * プレイリストの項目の情報。`key` はキュー内で項目を区別するキー、区間は秒で指定する。
    * 指定すると「全編」「区間」の表示と、自分用のメモを出す。
    */
-  playlistItem?: { key: string; startSeconds?: number; endSeconds?: number; note?: string };
+  playlistItem?: {
+    key: string;
+    startSeconds?: number;
+    endSeconds?: number;
+    note?: string;
+    /** ランダム再生の重み（1は指定なしと同じ） */
+    weight?: number;
+  };
 }
 
 const {
@@ -84,6 +91,7 @@ const segment = playlistItem && formatSegment(playlistItem);
     data-item-key={playlistItem?.key ?? videoId}
     data-start={playlistItem?.startSeconds}
     data-end={playlistItem?.endSeconds}
+    data-weight={playlistItem?.weight === 1 ? undefined : playlistItem?.weight}
     data-title={title}
     data-channel-name={channelName}
     data-channel-url={channelUrl}

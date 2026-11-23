@@ -29,6 +29,8 @@ export interface PlaylistItemInput {
   end?: string;
   /** 自分用のメモ（例：「好きな話題」）。タイトルとは別に表示する */
   note?: string;
+  /** ランダム再生の重み（1〜10、省略時は1）。大きいほど周の前のほうに来やすい */
+  weight?: number;
 }
 
 export interface PlaylistInput {
@@ -49,6 +51,8 @@ export interface PlaylistItem {
   startSeconds?: number;
   /** 終了（秒）。動画の最後までなら `undefined` */
   endSeconds?: number;
+  /** ランダム再生の重み */
+  weight: number;
   channelData: ShelfChannel;
 }
 
@@ -132,6 +136,7 @@ export function buildPlaylist(
       note: input.note,
       startSeconds: start,
       endSeconds,
+      weight: input.weight ?? 1,
       channelData,
     });
   });

@@ -101,6 +101,17 @@ describe('buildPlaylist', () => {
     expect(result.items[0].channelData.id).toBe('alpha');
   });
 
+  it('重みは省略時に1、指定時はその値', () => {
+    const result = buildPlaylist(
+      playlist([
+        { video: 'aaaaaaaaaaa', channel: 'alpha', title: 'A' },
+        { video: 'bbbbbbbbbbb', channel: 'alpha', title: 'B', weight: 4 },
+      ]),
+      channels,
+    );
+    expect(result.items.map(({ weight }) => weight)).toEqual([1, 4]);
+  });
+
   it('同じ動画の別の区間は別の項目として並べる', () => {
     const result = buildPlaylist(
       playlist([

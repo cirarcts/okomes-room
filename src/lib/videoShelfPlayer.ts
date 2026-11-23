@@ -9,6 +9,7 @@
  *   再生できない印は動画IDごとに付ける（同じ動画の別の区間も再生できないため）。
  * - 再生方法は「棚の順」と「ランダム」。ランダムでは棚の動画を1周ずつシャッフルし、1周の中で同じ動画を
  *   繰り返さない。「繰り返す」がONなら、棚の最後で最初に戻る（ランダムでは混ぜ直し、直前の動画は続けない）。
+ *   プレイリストの項目に重み（`data-weight`）があれば、重い項目ほど周の前のほうに来やすくする。
  * - 連続再生は常にON。動画の終了後に次へ進む。自動で再生するのは、プレイヤーの半分を超えて
  *   見えていて、かつタブが表示中の場合だけ（規約 RMF）。それ以外は準備だけしてユーザーの操作を待つ。
  * - 「次に流れる動画」に、今の動画の後に再生される数本を並べる（押すとその動画へ移る）。
@@ -87,10 +88,18 @@ export function initVideoShelfPlayer(): void {
   // 棚ごとのキュー。カードの並び順がそのまま再生順になる。
   const queues = new Map<HTMLElement, VideoQueue>();
   for (const element of document.querySelectorAll<HTMLElement>('[data-queue-id]')) {
+    const queueCards = Array.from(element.querySelectorAll<HTMLElement>('[data-video-card]'));
+    // ランダム再生の重み（プレイリストの項目だけが持つ）。棚ごとに持ち、ほかの棚の同じ動画には効かせない。
+    const weights = new Map<string, number>();
+    for (const card of queueCards) {
+      const weight = Number(card.dataset.weight);
+      if (Number.isFinite(weight) && weight > 0 && weight !== 1) weights.set(keyOf(card), weight);
+    }
     queues.set(element, {
       id: element.dataset.queueId ?? '',
       label: element.dataset.queueLabel ?? '',
-      keys: Array.from(element.querySelectorAll<HTMLElement>('[data-video-card]'), keyOf),
+      keys: queueCards.map(keyOf),
+      weights: weights.size > 0 ? weights : undefined,
     });
   }
 
@@ -117,7 +126,9 @@ export function initVideoShelfPlayer(): void {
   const reshuffleFrom = (key: string | undefined) => {
     const queue = currentQueue();
     shuffledKeys =
-      queue && playOrder === 'shuffle' ? shuffleQueueKeys(queue.keys, { first: key }) : undefined;
+      queue && playOrder === 'shuffle'
+        ? shuffleQueueKeys(queue.keys, { first: key, weights: queue.weights })
+        : undefined;
   };
 
   const cardInQueue = (key: string) =>
@@ -158,7 +169,11 @@ export function initVideoShelfPlayer(): void {
     if (next) return { id: next };
     if (!repeat) return undefined;
     if (playOrder === 'shuffle') {
-      const ids = shuffleQueueKeys(shelf.keys, { avoidFirst: currentKey, skip });
+      const ids = shuffleQueueKeys(shelf.keys, {
+        avoidFirst: currentKey,
+        skip,
+        weights: shelf.weights,
+      });
       const id = findFirstPlayable({ ...shelf, keys: ids }, { skip });
       return id
         ? { id, notice: text('msgQueueReshuffle'), apply: () => (shuffledKeys = ids) }
@@ -501,7 +516,10 @@ export function initVideoShelfPlayer(): void {
     if (repeatToggle) repeatToggle.checked = repeat;
     queueElement = target;
     const skip = skipped();
-    shuffledKeys = playOrder === 'shuffle' ? shuffleQueueKeys(shelf.keys, { skip }) : undefined;
+    shuffledKeys =
+      playOrder === 'shuffle'
+        ? shuffleQueueKeys(shelf.keys, { skip, weights: shelf.weights })
+        : undefined;
     const queue = playQueue();
     const first = queue ? findFirstPlayable(queue, { skip }) : undefined;
     const name = link.dataset.presetName ?? '';

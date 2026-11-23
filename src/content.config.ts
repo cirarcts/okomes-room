@@ -232,6 +232,8 @@ const videoPlaylists = defineCollection({
           start: timestamp.optional(),
           end: timestamp.optional(),
           note: z.string().min(1).optional(),
+          // ランダム再生の重み。大きいほど周の前のほうに来やすい。
+          weight: z.number().int().min(1).max(10).optional(),
         }),
       )
       .min(1),

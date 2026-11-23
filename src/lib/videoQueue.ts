@@ -13,6 +13,8 @@ export interface VideoQueue {
   label: string;
   /** 棚に並ぶ順の項目のキー */
   keys: readonly string[];
+  /** ランダム再生の重み（プレイリストの `weight`）。指定のない項目は1 */
+  weights?: ReadonlyMap<string, number>;
 }
 
 export interface QueueStepOptions {
@@ -111,20 +113,40 @@ export interface ShuffleOptions {
   avoidFirst?: string;
   /** 再生できない動画（`avoidFirst` の判定で、最初に再生される位置を求めるのに使う） */
   skip?: ReadonlySet<string>;
+  /**
+   * 項目の重み（指定のない項目、正でない値は1）。重い項目ほど周の前のほうに来やすい。
+   * 1周の中で各項目が1回ずつなのは変わらない。
+   */
+  weights?: ReadonlyMap<string, number>;
 }
 
+const weightOf = (weights: ReadonlyMap<string, number> | undefined, key: string) => {
+  const weight = weights?.get(key);
+  return weight !== undefined && Number.isFinite(weight) && weight > 0 ? weight : 1;
+};
+
 /**
- * 棚の動画をシャッフルした再生順を返す（Fisher–Yates）。
+ * 棚の動画をシャッフルした再生順を返す。
+ * 重みがすべて1なら Fisher–Yates、重みがあれば重み付きの非復元抽出（Efraimidis–Spirakis）で並べる。
  * 同じ動画が棚に重複していても、1周の中では1回だけにする。
  */
 export function shuffleQueueKeys(
   keys: readonly string[],
-  { random = Math.random, first, avoidFirst, skip }: ShuffleOptions = {},
+  { random = Math.random, first, avoidFirst, skip, weights }: ShuffleOptions = {},
 ): string[] {
-  const ids = [...new Set(keys)].filter((id) => id !== first);
-  for (let index = ids.length - 1; index > 0; index -= 1) {
-    const swap = Math.floor(random() * (index + 1));
-    [ids[index], ids[swap]] = [ids[swap], ids[index]];
+  let ids = [...new Set(keys)].filter((id) => id !== first);
+  if (ids.some((id) => weightOf(weights, id) !== 1)) {
+    // 各項目に -ln(u) / 重み（u は (0, 1] の一様乱数）を割り当て、小さい順に並べる。
+    // 重みに比例した確率で1つずつ選び、選んだものを除いて繰り返すのと同じ分布になる。
+    const sortKeys = new Map(
+      ids.map((id) => [id, -Math.log(1 - random()) / weightOf(weights, id)] as const),
+    );
+    ids = [...ids].sort((a, b) => (sortKeys.get(a) ?? 0) - (sortKeys.get(b) ?? 0));
+  } else {
+    for (let index = ids.length - 1; index > 0; index -= 1) {
+      const swap = Math.floor(random() * (index + 1));
+      [ids[index], ids[swap]] = [ids[swap], ids[index]];
+    }
   }
   if (first !== undefined && keys.includes(first)) ids.unshift(first);
 
