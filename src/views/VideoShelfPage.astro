@@ -7,7 +7,13 @@ import VideoCard from '../components/video-shelf/VideoCard.astro';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getPageLocale, localizedPath } from '../lib/locale';
 import { messages } from '../lib/messages';
-import { buildPlaylist, collectTags, sortPlaylists, type Playlist } from '../lib/videoPlaylist';
+import {
+  buildPlaylist,
+  collectTags,
+  sortPlaylists,
+  tagKey,
+  type Playlist,
+} from '../lib/videoPlaylist';
 import {
   CHANNEL_SHELF_ROWS,
   PRESET_PARAM,
@@ -81,6 +87,7 @@ const knownQueueIds = new Set<string>([
 const presets = validatePresets(
   (await getCollection('videoPresets')).map(({ data }) => data),
   knownQueueIds,
+  new Set(sceneTags.map(({ key }) => key)),
 );
 const presetName = (preset: (typeof presets)[number]) =>
   locale === 'en' ? preset.nameEn : preset.name;
@@ -225,6 +232,7 @@ const navIconClass =
                     data-preset-id={preset.id}
                     data-preset-name={presetName(preset)}
                     data-preset-queue={preset.queue}
+                    data-preset-tag={preset.tag === undefined ? undefined : tagKey(preset.tag)}
                     data-preset-order={preset.playOrder}
                     data-preset-repeat={preset.repeat ? 'true' : 'false'}
                   >
@@ -733,6 +741,7 @@ const navIconClass =
 </BaseLayout>
 
 <script>
+  import { parseTagKeys } from '../lib/videoPlaylist';
   import { FILTER_CHANGE_EVENT, initVideoShelfPlayer } from '../lib/videoShelfPlayer';
   import {
     VIDEO_KINDS,
@@ -767,15 +776,6 @@ const navIconClass =
   const tagInputs = Array.from(
     document.querySelectorAll<HTMLInputElement>('input[name="video-tag"]'),
   );
-  const parseTags = (value: string | undefined): string[] => {
-    if (!value) return [];
-    try {
-      const parsed: unknown = JSON.parse(value);
-      return Array.isArray(parsed) ? parsed.filter((tag) => typeof tag === 'string') : [];
-    } catch {
-      return [];
-    }
-  };
   const isVideoKind = (value: string | undefined): value is VideoKind =>
     VIDEO_KINDS.some((kind) => kind === value);
   const disclosures = new Map(
@@ -800,7 +800,7 @@ const navIconClass =
       searchText: normalizeSearchText(item.dataset.search ?? ''),
       kind: isVideoKind(item.dataset.kind) ? item.dataset.kind : undefined,
       categories: (item.dataset.categories ?? '').split(' ').filter(Boolean),
-      tags: parseTags(item.dataset.tags),
+      tags: parseTagKeys(item.dataset.tags),
     },
   }));
   // 内側のまとまりから先に判定するため、文書順の逆に並べる。

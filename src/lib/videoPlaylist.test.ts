@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildPlaylist,
   collectTags,
+  parseTagKeys,
   formatSegment,
   isSegment,
   parseTimestamp,
@@ -238,6 +239,20 @@ describe('collectTags', () => {
 
   it('タグがなければ空', () => {
     expect(collectTags([])).toEqual([]);
+  });
+});
+
+describe('parseTagKeys', () => {
+  it('JSON配列の文字列だけを返す', () => {
+    expect(parseTagKeys('["神回","boss"]')).toEqual(['神回', 'boss']);
+    expect(parseTagKeys('["神回",1,null]')).toEqual(['神回']);
+  });
+
+  it('空・不正なJSON・配列でない値は空', () => {
+    expect(parseTagKeys(undefined)).toEqual([]);
+    expect(parseTagKeys('')).toEqual([]);
+    expect(parseTagKeys('{')).toEqual([]);
+    expect(parseTagKeys('"神回"')).toEqual([]);
   });
 });
 

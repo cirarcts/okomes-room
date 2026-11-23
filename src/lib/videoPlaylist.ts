@@ -90,6 +90,19 @@ export function collectTags(
   return Array.from(tags, ([key, label]) => ({ key, label }));
 }
 
+/** カードの `data-tags`（`tagKey` の値のJSON配列）を読む。正しくなければ空。 */
+export function parseTagKeys(value: string | undefined): string[] {
+  if (!value) return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed)
+      ? parsed.filter((tag): tag is string => typeof tag === 'string')
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 /** キューで使う項目のキー。区間のない項目は動画IDそのもの（ほかの棚のカードと同じ扱い）。 */
 export function playlistItemKey(
   videoId: string,
