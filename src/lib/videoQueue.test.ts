@@ -7,6 +7,7 @@ import {
   findPrevious,
   queuePosition,
   shuffleQueueKeys,
+  upcomingKeys,
   visibleRatioOf,
   type VideoQueue,
 } from './videoQueue';
@@ -193,5 +194,40 @@ describe('shuffleQueueKeys', () => {
 
   it('空の棚では空の配列を返す', () => {
     expect(shuffleQueueKeys([])).toEqual([]);
+  });
+});
+
+describe('upcomingKeys', () => {
+  const long: VideoQueue = {
+    id: 'long',
+    label: '長い棚',
+    keys: ['a', 'b', 'c', 'd', 'e', 'f', 'g'],
+  };
+
+  it('今の項目の後ろを、上限の件数まで返す', () => {
+    expect(upcomingKeys(long, 'b', { limit: 3 })).toEqual(['c', 'd', 'e']);
+  });
+
+  it('棚の最後に近いときは残りだけを返す（繰り返す分は含めない）', () => {
+    expect(upcomingKeys(long, 'f', { limit: 5 })).toEqual(['g']);
+    expect(upcomingKeys(long, 'g', { limit: 5 })).toEqual([]);
+  });
+
+  it('飛ばす項目を除き、その分だけ先の項目で埋める', () => {
+    expect(upcomingKeys(long, 'a', { limit: 3, skip: new Set(['b', 'd']) })).toEqual([
+      'c',
+      'e',
+      'f',
+    ]);
+  });
+
+  it('今の項目と同じキーや、重複したキーは1回だけにする', () => {
+    const dup: VideoQueue = { id: 'dup', label: '重複', keys: ['a', 'b', 'a', 'c', 'b', 'd'] };
+    expect(upcomingKeys(dup, 'a', { limit: 5 })).toEqual(['b', 'c', 'd']);
+  });
+
+  it('今の項目がキューにない、または上限が0以下なら空', () => {
+    expect(upcomingKeys(long, 'x', { limit: 3 })).toEqual([]);
+    expect(upcomingKeys(long, 'a', { limit: 0 })).toEqual([]);
   });
 });

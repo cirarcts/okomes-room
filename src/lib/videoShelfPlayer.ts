@@ -11,7 +11,12 @@
  *   繰り返さない。「繰り返す」がONなら、棚の最後で最初に戻る（ランダムでは混ぜ直し、直前の動画は続けない）。
  * - 連続再生は常にON。動画の終了後に次へ進む。自動で再生するのは、プレイヤーの半分を超えて
  *   見えていて、かつタブが表示中の場合だけ（規約 RMF）。それ以外は準備だけしてユーザーの操作を待つ。
+ * - 「次に流れる動画」に、今の動画の後に再生される数本を並べる（押すとその動画へ移る）。
+ * - 再生プリセット（`?preset=<id>` のリンク）は、棚と再生方法・繰り返しをまとめて設定して先頭から再生する。
+ *   URLから開いた場合は自動で再生せず、準備だけする。
  */
+import { formatSegment } from './videoPlaylist';
+import { presetIdFromSearch } from './videoPreset';
 import { VIDEO_ID_PATTERN } from './videoShelf';
 import {
   canAutoplay,
@@ -20,6 +25,7 @@ import {
   findPrevious,
   queuePosition,
   shuffleQueueKeys,
+  upcomingKeys,
   visibleRatioOf,
   type PlayOrder,
   type VideoQueue,
@@ -37,6 +43,9 @@ import {
 export const FILTER_CHANGE_EVENT = 'video-shelf-filter-change';
 
 type LoadMode = 'play' | 'cue';
+
+/** 「次に流れる動画」に並べる件数。 */
+const UP_NEXT_LIMIT = 5;
 
 function query<T extends Element>(root: ParentNode, selector: string): T | null {
   return root.querySelector<T>(selector);
@@ -58,6 +67,13 @@ export function initVideoShelfPlayer(): void {
     document.querySelectorAll<HTMLInputElement>('[data-player-order]'),
   );
   const messageEl = query<HTMLElement>(document, '[data-player-message]');
+  const upNextEl = query<HTMLDetailsElement>(document, '[data-player-upnext]');
+  const upNextList = query<HTMLOListElement>(document, '[data-player-upnext-list]');
+  const upNextNote = query<HTMLElement>(document, '[data-player-upnext-note]');
+  const presetsEl = query<HTMLElement>(document, '[data-player-presets]');
+  const presetLinks = Array.from(
+    document.querySelectorAll<HTMLAnchorElement>('[data-preset-link]'),
+  );
   if (!frame) return;
 
   const cards = Array.from(document.querySelectorAll<HTMLAnchorElement>('[data-video-card]'));
@@ -178,7 +194,72 @@ export function initVideoShelfPlayer(): void {
               .replace('{total}', String(position.total))
           : '';
     }
+    renderUpNext(queue, skip);
   };
+
+  // 「次に流れる動画」。番号は位置の表示と同じく、飛ばす動画を除いた並びで数える。
+  function renderUpNext(queue: VideoQueue | undefined, skip: ReadonlySet<string>) {
+    if (!upNextEl || !upNextList || !upNextNote) return;
+    if (!queue || !currentKey) {
+      upNextEl.hidden = true;
+      return;
+    }
+    const counted = queue.keys.filter((id) => id === currentKey || !skip.has(id));
+    const items = upcomingKeys(queue, currentKey, { skip, limit: UP_NEXT_LIMIT }).flatMap((key) => {
+      const card = cardInQueue(key);
+      return card ? [{ key, card, index: counted.indexOf(key) + 1 }] : [];
+    });
+    upNextList.replaceChildren(
+      ...items.map(({ key, card, index }) => upNextItem(key, card, index)),
+    );
+    const lastShown = items.at(-1)?.key ?? currentKey;
+    const more = findNext(queue, lastShown, { skip }) !== undefined;
+    upNextNote.textContent = more
+      ? ''
+      : repeat
+        ? text(playOrder === 'shuffle' ? 'msgUpNextReshuffle' : 'msgUpNextRepeat')
+        : text('msgUpNextEnd');
+    upNextEl.hidden = false;
+  }
+
+  function upNextItem(key: string, card: HTMLAnchorElement, index: number) {
+    const item = document.createElement('li');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className =
+      'hover:bg-surface focus-visible:bg-surface flex min-h-11 w-full items-center gap-3 rounded-md px-2 py-1.5 text-left';
+    button.addEventListener('click', () => load(key, 'play'));
+
+    const number = document.createElement('span');
+    number.className = 'text-muted w-6 shrink-0 text-right font-mono text-xs';
+    number.textContent = index > 0 ? String(index) : '';
+
+    const thumbnail = card.querySelector('img');
+    const image = document.createElement('img');
+    image.className = 'aspect-video w-20 shrink-0 rounded-sm bg-black object-cover';
+    image.alt = '';
+    image.loading = 'lazy';
+    image.decoding = 'async';
+    if (thumbnail?.currentSrc || thumbnail?.src) image.src = thumbnail.currentSrc || thumbnail.src;
+
+    const body = document.createElement('span');
+    body.className = 'grid min-w-0 gap-0.5';
+    const title = document.createElement('span');
+    title.className = 'text-fg truncate text-sm';
+    title.textContent = card.dataset.title ?? '';
+    const meta = document.createElement('span');
+    meta.className = 'text-muted truncate text-xs';
+    const segment = formatSegment({
+      startSeconds: secondsOf(card.dataset.start),
+      endSeconds: secondsOf(card.dataset.end),
+    });
+    meta.textContent = [card.dataset.channelName, segment].filter(Boolean).join(' · ');
+    body.append(title, meta);
+
+    button.append(number, image, body);
+    item.append(button);
+    return item;
+  }
 
   // 今の動画のカードを、棚の横スクロールの中で見える位置に移す（ページの縦位置は変えない）。
   const revealCard = (card: HTMLElement | undefined) => {
@@ -384,21 +465,71 @@ export function initVideoShelfPlayer(): void {
     updateControls();
   }
 
-  // ユーザーがカードやボタンを押して再生を始める。
-  const playFromCard = (card: HTMLAnchorElement) => {
-    if (!VIDEO_ID_PATTERN.test(card.dataset.videoId ?? '')) return false;
-    const key = keyOf(card);
-    queueElement = card.closest<HTMLElement>('[data-queue-id]');
-    reshuffleFrom(key);
-    const isFirstPlay = !player && !playerReady;
-    load(key, 'play', { focusPlayer: isFirstPlay });
+  // 選択中のプリセットの印。棚や再生方法を手で変えたら外す。
+  const markPreset = (link: HTMLAnchorElement | undefined) => {
+    for (const other of presetLinks) {
+      if (other === link) other.setAttribute('aria-current', 'true');
+      else other.removeAttribute('aria-current');
+    }
+  };
 
+  const scrollToPlayer = () => {
     // プレイヤーが画面外にある場合（スマートフォンで一覧を下へ進んだときなど）は表示位置まで戻す。
     const rect = frame.getBoundingClientRect();
     if (rect.top < 0 || rect.bottom > window.innerHeight) {
       const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       frame.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
     }
+  };
+
+  const presetQueueElement = (link: HTMLAnchorElement) =>
+    document.querySelector<HTMLElement>(
+      `[data-queue-id="${CSS.escape(link.dataset.presetQueue ?? '')}"]`,
+    );
+
+  /**
+   * プリセットの棚・再生方法・繰り返しを設定し、最初に再生できる動画を読み込む。
+   * @returns 読み込めたか（棚がない、または再生できる動画がない場合は false）
+   */
+  const applyPreset = (link: HTMLAnchorElement, mode: LoadMode) => {
+    const target = presetQueueElement(link);
+    const shelf = target ? queues.get(target) : undefined;
+    if (!target || !shelf) return false;
+    playOrder = link.dataset.presetOrder === 'shuffle' ? 'shuffle' : 'ordered';
+    repeat = link.dataset.presetRepeat === 'true';
+    for (const input of orderInputs) input.checked = input.value === playOrder;
+    if (repeatToggle) repeatToggle.checked = repeat;
+    queueElement = target;
+    const skip = skipped();
+    shuffledKeys = playOrder === 'shuffle' ? shuffleQueueKeys(shelf.keys, { skip }) : undefined;
+    const queue = playQueue();
+    const first = queue ? findFirstPlayable(queue, { skip }) : undefined;
+    const name = link.dataset.presetName ?? '';
+    if (!first) {
+      setMessage((presetsEl?.dataset.msgPresetEmpty ?? '').replace('{name}', name));
+      return false;
+    }
+    const isFirstPlay = !player && !playerReady;
+    load(first, mode, {
+      focusPlayer: mode === 'play' && isFirstPlay,
+      message: [
+        mode === 'cue' ? (presetsEl?.dataset.msgPresetCued ?? '').replace('{name}', name) : '',
+      ],
+    });
+    markPreset(link);
+    return true;
+  };
+
+  // ユーザーがカードやボタンを押して再生を始める。
+  const playFromCard = (card: HTMLAnchorElement) => {
+    if (!VIDEO_ID_PATTERN.test(card.dataset.videoId ?? '')) return false;
+    const key = keyOf(card);
+    markPreset(undefined);
+    queueElement = card.closest<HTMLElement>('[data-queue-id]');
+    reshuffleFrom(key);
+    const isFirstPlay = !player && !playerReady;
+    load(key, 'play', { focusPlayer: isFirstPlay });
+    scrollToPlayer();
     return true;
   };
 
@@ -425,14 +556,26 @@ export function initVideoShelfPlayer(): void {
     next.apply?.();
     load(next.id, 'play', { message: [next.notice] });
   });
+  for (const link of presetLinks) {
+    link.addEventListener('click', (event) => {
+      // 修飾キー付きのクリックは通常のリンクとして開く（新しいタブでは準備だけする）。
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+        return;
+      }
+      event.preventDefault();
+      if (applyPreset(link, 'play')) scrollToPlayer();
+    });
+  }
   repeatToggle?.addEventListener('change', () => {
     repeat = repeatToggle.checked;
+    markPreset(undefined);
     updateControls();
   });
   for (const input of orderInputs) {
     input.addEventListener('change', () => {
       if (!input.checked) return;
       playOrder = input.value === 'shuffle' ? 'shuffle' : 'ordered';
+      markPreset(undefined);
       // 再生中に切り替えた場合は、今の動画から新しい順で続ける。
       reshuffleFrom(currentKey);
       setMessage('');
@@ -445,5 +588,19 @@ export function initVideoShelfPlayer(): void {
   // ブラウザが戻ったときに復元するフォームの状態は使わず、初期値に揃える。
   if (repeatToggle) repeatToggle.checked = false;
   for (const input of orderInputs) input.checked = input.value === 'ordered';
+  // 棚が空（動画の取得に失敗したなど）のプリセットは出さない。
+  for (const link of presetLinks) {
+    const target = presetQueueElement(link);
+    const item = link.closest('li');
+    if (item) item.hidden = !target || (queues.get(target)?.keys.length ?? 0) === 0;
+  }
+  if (presetsEl) presetsEl.hidden = presetLinks.every((link) => link.closest('li')?.hidden);
   stage.hidden = false;
+
+  // URLでプリセットが指定されていれば、準備だけする（自動では再生しない）。
+  const presetId = presetIdFromSearch(window.location.search);
+  const presetLink = presetId
+    ? presetLinks.find((link) => link.dataset.presetId === presetId)
+    : undefined;
+  if (presetLink) applyPreset(presetLink, 'cue');
 }

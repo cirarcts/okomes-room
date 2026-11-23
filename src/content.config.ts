@@ -166,6 +166,23 @@ const uploadVideo = z.object({
 });
 
 // 動画の棚：チャンネルごとの新着（自動取得）。`id` はチャンネルのslug。
+// 再生プリセット。1つの棚を、決めた再生方法で流す（対象の棚の存在はページのビルド時に確かめる）。
+const videoPresets = defineCollection({
+  loader: file('./src/content/video-shelf/presets.json'),
+  schema: z.object({
+    id: z
+      .string()
+      .regex(SLUG_PATTERN, 'プリセットのidは英小文字・数字・ハイフンで指定してください。'),
+    name: z.string().min(1),
+    nameEn: z.string().min(1),
+    // 小さいほど前に並べる。
+    order: z.number().int().default(0),
+    queue: z.string().min(1),
+    playOrder: z.enum(['ordered', 'shuffle']).default('ordered'),
+    repeat: z.boolean().default(false),
+  }),
+});
+
 const channelUploads = defineCollection({
   loader: youtubeUploadsLoader(),
   schema: z.object({
@@ -227,5 +244,6 @@ export const collections = {
   videoChannels,
   shelfVideos,
   videoPlaylists,
+  videoPresets,
   channelUploads,
 };

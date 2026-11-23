@@ -63,6 +63,31 @@ export function queuePosition(
   return index === -1 ? undefined : { index: index + 1, total: queue.keys.length };
 }
 
+export interface UpcomingOptions extends QueueStepOptions {
+  /** 返す最大の件数 */
+  limit: number;
+}
+
+/**
+ * 今の項目の後に再生される項目のキー（キュー表示用）。飛ばす項目と、今の項目と同じキーは除く。
+ * 今の項目がキューにない場合は空。棚の最後で繰り返す分は含めない（呼び出し側で案内する）。
+ */
+export function upcomingKeys(
+  queue: VideoQueue,
+  currentId: string,
+  { skip, limit }: UpcomingOptions,
+): string[] {
+  const start = queue.keys.indexOf(currentId);
+  if (start === -1 || limit <= 0) return [];
+  const result: string[] = [];
+  for (const id of queue.keys.slice(start + 1)) {
+    if (id === currentId || skip?.has(id) || result.includes(id)) continue;
+    result.push(id);
+    if (result.length >= limit) break;
+  }
+  return result;
+}
+
 /** 再生方法。`ordered` は棚の並び順、`shuffle` はランダム。 */
 export type PlayOrder = 'ordered' | 'shuffle';
 
