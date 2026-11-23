@@ -271,6 +271,37 @@ YouTubeの公式文書（[Developer Policies](https://developers.google.com/yout
 | JavaScript無効時 | カードのリンクはYouTubeの視聴ページを開き、区間の項目は開始位置（`&t=秒s`）から開く                                                                                                            |
 | 表示             | カードに「全編」「区間」のラベルと区間（例：`12:30〜18:45`）、メモを表示する。種別は持たないため、種別の絞り込みでは「すべて」のときだけ表示する                                               |
 
+## Phase 5.5：シーン検索の調査（2026-11-23）
+
+「タイムスタンプ・文字起こしなどから、動画の中のシーンを探す仕組み」が、規約とAPIの仕様の範囲で作れるかを調べた。確認した文書は、[Developer Policies](https://developers.google.com/youtube/terms/developer-policies)（III.E）、[Developer Policies Guide](https://developers.google.com/youtube/terms/developer-policies-guide)、[API Services Terms of Service](https://developers.google.com/youtube/terms/api-services-terms-of-service)、[YouTube利用規約](https://www.youtube.com/t/terms)、Data APIの [captions](https://developers.google.com/youtube/v3/docs/captions) / [videos](https://developers.google.com/youtube/v3/docs/videos) / [commentThreads](https://developers.google.com/youtube/v3/docs/commentThreads/list)、[IFrame Player API](https://developers.google.com/youtube/iframe_api_reference)、[チャプターのヘルプ](https://support.google.com/youtube/answer/9884579)。
+
+### 結論
+
+**他の人の動画から、シーンを自動で取り出す方法はない。** 字幕はAPIで取得できず、概要欄やコメントから時刻を取り出すことは「API Dataを使って新しいデータを作る」ことにあたる。シーンは、**自分で見つけて手動で登録する**方式にする（Phase 5.4のプレイリストと同じく、API Dataではない）。
+
+### 方式の比較
+
+| 方式                                          | 判定     | 理由                                                                                                                                                                                                                                                                                                     |
+| --------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 字幕（`captions.list` / `captions.download`） | 不可     | どちらもOAuthが必須（`youtube.force-ssl` など）。`captions.download` は動画を編集する権限が必要で、他の人の動画の字幕は取得できない。`captions.list` も字幕の本文は返さない                                                                                                                              |
+| 非公開のエンドポイント（`timedtext` など）    | 不可     | Developer Policies III.E の「Scraping」と、III.I の「YouTube API Services以外の技術でAPI Dataを取得しない」に反する。YouTube利用規約も、自動化された手段でのアクセスを禁止している                                                                                                                       |
+| 動画をダウンロードして文字起こし              | 不可     | 動画のダウンロード・保存は禁止（III.E、YouTube利用規約）。この展示物の基本方針にも反する                                                                                                                                                                                                                 |
+| 概要欄のチャプター（`snippet.description`）   | 採用せず | Data APIにチャプターの項目はなく、概要欄の時刻を自分で読み取る必要がある。III.E.4 は「API Dataを使って新しいデータや派生データを作らない」と定めており、概要欄から時刻を抜き出してシーンの一覧を作ることは、これにあたると判断した。なお、チャプターは埋め込みプレイヤーのシークバーにそのまま表示される |
+| コメントの時刻（`commentThreads.list`）       | 採用せず | 概要欄と同じく派生データにあたる。さらに、コメントは他の人の投稿で、利用者名などの個人を特定しうる情報の収集も利用規約で禁止されている                                                                                                                                                                   |
+| 自分の動画の字幕（OAuth）                     | 保留     | 管理人のチャンネルの動画なら `captions.download` で取得できる。ただし、この展示物ではOAuthを使わない方針で、対象も自分の動画に限られる。必要になったら再検討する                                                                                                                                         |
+| **手動で登録したシーン**                      | **採用** | 自分で動画を見て、区間とメモ（タグ）を記入する。API Dataではないため、保存期間・派生データ・集約の条項の対象にならない。Phase 5.4のプレイリストの区間・メモ・検索をそのまま土台にできる                                                                                                                  |
+
+### 手動登録を楽にする方法（次の実装の候補）
+
+- **区間の記録ボタン**：IFrame Player APIの `getCurrentTime()`（公式のメソッド）で再生中の時刻を読み取る。「開始」「終了」を押すと、`playlists.json` に貼れる形（動画ID・チャンネル・タイトル・`start` / `end`）を表示する。開発環境（`npm run dev`）だけで表示し、公開ページには出さない。
+- **タグでシーンを探す**：プレイリストの項目にタグ（例：`"tags": ["ティガレックス", "神回"]`）を持たせ、検索・絞り込みでシーンを探せるようにする。今もメモ（`note`）は検索の対象になっている。
+- どちらも、データはすべて手動で記入するため、チャンネルをまたいで並べてよい（Phase 5.4と同じ判断）。
+
+### 注意点
+
+- 規約は改定されるため、実装の着手時に III.E（保存・派生データ・スクレイピング）を再確認する。2026-06-01から、審査を通った分析用途に限り、派生指標とデータ保存の追加の許可（III.L）がある。この展示物は対象外。
+- 概要欄やコメントの時刻を書き写してシーンを登録することも避ける。自分で動画を見て確かめた区間だけを登録する（III.E.4 の趣旨と、Phase 1の「推測でIDを作らない」と同じ考え方）。
+
 ## チャンネル別の棚と過去動画
 
 - チャンネルごとに「投稿動画」「配信アーカイブ・プレミア」「Shorts」を公開日の新しい順に表示する。分類はYouTubeの「動画」「ショート」「ライブ」タブに合わせ、種類ごとに直近最大100本を取得する（[動画の種別](#動画の種別)）。本数は `channels.json` の `uploadsPerKind` でチャンネルごとに変更できる。`shorts` はYouTube Shorts。
@@ -288,4 +319,4 @@ YouTubeの公式文書（[Developer Policies](https://developers.google.com/yout
 | 5.2   | ✅ プレイリストの重みは実装済み（上記）。棚をまたぐ重み付けは手動データが増えたら検討 | APIの棚をまたぐ場合はIII.E.2の懸念。手動データか1チャンネル内に限る |
 | 5.3   | ✅ 実装済み（上記）                                                                   | —                                                                   |
 | 5.4   | ✅ 実装済み（上記）                                                                   | —                                                                   |
-| 5.5   | タイムスタンプ・文字起こしなどからシーンを探す仕組み                                  | 別途検討                                                            |
+| 5.5   | 調査済み（上記）。自動抽出は不可。手動登録を楽にする仕組みを候補とする                | 区間の記録ボタン・タグのどちらから作るか                            |
