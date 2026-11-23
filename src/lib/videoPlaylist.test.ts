@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildPlaylist,
+  collectTags,
   formatSegment,
   isSegment,
   parseTimestamp,
@@ -113,6 +114,28 @@ describe('buildPlaylist', () => {
     expect(result.items.map(({ weight }) => weight)).toEqual([1, 4]);
   });
 
+  it('タグは省略時に空、指定時は記入した表記のまま', () => {
+    const result = buildPlaylist(
+      playlist([
+        { video: 'aaaaaaaaaaa', channel: 'alpha', title: 'A' },
+        { video: 'bbbbbbbbbbb', channel: 'alpha', title: 'B', tags: ['ボス', 'Boss Fight'] },
+      ]),
+      channels,
+    );
+    expect(result.items.map(({ tags }) => tags)).toEqual([[], ['ボス', 'Boss Fight']]);
+  });
+
+  it('同じ項目の中でタグが重複していたらビルドを止める（表記ゆれも重複とみなす）', () => {
+    expect(() =>
+      buildPlaylist(
+        playlist([
+          { video: 'aaaaaaaaaaa', channel: 'alpha', title: 'A', tags: ['Boss', 'ｂｏｓｓ'] },
+        ]),
+        channels,
+      ),
+    ).toThrow(/タグ "ｂｏｓｓ" が重複/);
+  });
+
   it('同じ動画の別の区間は別の項目として並べる', () => {
     const result = buildPlaylist(
       playlist([
@@ -185,6 +208,36 @@ describe('buildPlaylist', () => {
         channels,
       ),
     ).toThrow(/重複/);
+  });
+});
+
+describe('collectTags', () => {
+  it('最初に出てきた順に、表記ゆれをまとめて返す', () => {
+    const items = (tagLists: string[][]) =>
+      buildPlaylist(
+        playlist(
+          tagLists.map((tags, index) => ({
+            video: `${'a'.repeat(10)}${index}`,
+            channel: 'alpha',
+            title: 'A',
+            tags,
+          })),
+        ),
+        channels,
+      );
+    const tags = collectTags([
+      items([['神回', 'Boss'], ['ラスボス']]),
+      items([['ｂｏｓｓ', '神回']]),
+    ]);
+    expect(tags).toEqual([
+      { key: '神回', label: '神回' },
+      { key: 'boss', label: 'Boss' },
+      { key: 'ラスボス', label: 'ラスボス' },
+    ]);
+  });
+
+  it('タグがなければ空', () => {
+    expect(collectTags([])).toEqual([]);
   });
 });
 

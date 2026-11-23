@@ -234,6 +234,8 @@ const videoPlaylists = defineCollection({
           note: z.string().min(1).optional(),
           // ランダム再生の重み。大きいほど周の前のほうに来やすい。
           weight: z.number().int().min(1).max(10).optional(),
+          // シーンを探すためのタグ（例：["ティガレックス", "神回"]）。絞り込みと検索に使う。
+          tags: z.array(z.string().trim().min(1).max(30)).max(10).optional(),
         }),
       )
       .min(1),

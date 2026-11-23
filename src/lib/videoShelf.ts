@@ -121,6 +121,8 @@ export interface VideoFilter {
   kind: VideoKind | 'all';
   /** カテゴリの id。`all` はすべてのカテゴリ */
   category: string;
+  /** プレイリストの項目のタグ（`normalizeSearchText` 済み）。省略時はタグで絞り込まない */
+  tag?: string;
 }
 
 export interface FilterTarget {
@@ -130,17 +132,25 @@ export interface FilterTarget {
   kind?: VideoKind;
   /** 公開元チャンネルのカテゴリ */
   categories: readonly string[];
+  /** プレイリストの項目のタグ（`normalizeSearchText` 済み）。タグのない動画は空 */
+  tags?: readonly string[];
 }
 
 /** 何らかの絞り込み条件が指定されているか。 */
 export function isFilterActive(filter: VideoFilter): boolean {
-  return filter.terms.length > 0 || filter.kind !== 'all' || filter.category !== 'all';
+  return (
+    filter.terms.length > 0 ||
+    filter.kind !== 'all' ||
+    filter.category !== 'all' ||
+    filter.tag !== undefined
+  );
 }
 
 /** 動画が絞り込み条件に一致するかを判定する。 */
 export function matchesVideoFilter(target: FilterTarget, filter: VideoFilter): boolean {
   if (filter.kind !== 'all' && target.kind !== filter.kind) return false;
   if (filter.category !== 'all' && !target.categories.includes(filter.category)) return false;
+  if (filter.tag !== undefined && !target.tags?.includes(filter.tag)) return false;
   return filter.terms.every((term) => target.searchText.includes(term));
 }
 

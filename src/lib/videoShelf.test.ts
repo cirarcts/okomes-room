@@ -184,8 +184,18 @@ describe('検索と絞り込み', () => {
     ).toBe(false);
   });
 
+  it('タグを指定すると、そのタグを持つ動画だけが残る', () => {
+    const tagged = { ...target, tags: ['ティガレックス', '神回'] };
+    expect(matchesVideoFilter(tagged, { ...all, tag: '神回' })).toBe(true);
+    expect(matchesVideoFilter(tagged, { ...all, tag: 'ラスボス' })).toBe(false);
+    // タグのない動画（チャンネルの新着など）は、タグの指定があれば一致しない。
+    expect(matchesVideoFilter(target, { ...all, tag: '神回' })).toBe(false);
+    expect(matchesVideoFilter(tagged, all)).toBe(true);
+  });
+
   it('いずれかの条件があれば絞り込み中とみなす', () => {
     expect(isFilterActive(all)).toBe(false);
+    expect(isFilterActive({ ...all, tag: '神回' })).toBe(true);
     expect(isFilterActive({ ...all, terms: ['a'] })).toBe(true);
     expect(isFilterActive({ ...all, kind: 'live' })).toBe(true);
     expect(isFilterActive({ ...all, category: 'music' })).toBe(true);

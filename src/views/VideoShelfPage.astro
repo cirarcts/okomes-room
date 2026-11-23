@@ -7,7 +7,7 @@ import VideoCard from '../components/video-shelf/VideoCard.astro';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getPageLocale, localizedPath } from '../lib/locale';
 import { messages } from '../lib/messages';
-import { buildPlaylist, sortPlaylists, type Playlist } from '../lib/videoPlaylist';
+import { buildPlaylist, collectTags, sortPlaylists, type Playlist } from '../lib/videoPlaylist';
 import {
   CHANNEL_SHELF_ROWS,
   PRESET_PARAM,
@@ -64,6 +64,8 @@ const playlistInputs = (await getCollection('videoPlaylists')).map(({ data }) =>
 const playlists = sortPlaylists(playlistInputs.map((data) => buildPlaylist(data, channels))).filter(
   (playlist) => playlist.items.length > 0,
 );
+// 絞り込みのチップに並べるタグ（表示するプレイリストの項目のもの）。
+const sceneTags = collectTags(playlists);
 const playlistName = (playlist: Playlist) => (locale === 'en' ? playlist.nameEn : playlist.name);
 
 // 再生プリセット。対象は1つの棚。棚の存在はデータから確かめ、動画の取得に失敗して空になった棚は
@@ -129,6 +131,7 @@ function playlistCard(item: Playlist['items'][number]) {
       endSeconds: item.endSeconds,
       note: item.note,
       weight: item.weight,
+      tags: item.tags,
     },
   };
 }
@@ -492,6 +495,26 @@ const navIconClass =
             </div>
           </fieldset>
         )}
+        {sceneTags.length > 0 && (
+          // プレイリストの項目のタグ（シーンを探す）。1つだけ選べる。
+          <fieldset class="grid gap-2">
+            <legend class="mb-2 text-sm font-semibold">{t.tags}</legend>
+            <div class="flex flex-wrap gap-2">
+              {[{ key: '', label: t.kindAll }, ...sceneTags].map(({ key, label }) => (
+                <label class="bg-surface border-muted/30 has-checked:border-accent/70 has-checked:text-accent has-focus-visible:outline-accent inline-flex min-h-11 cursor-pointer items-center rounded-full border px-4 text-sm transition-colors has-focus-visible:outline-2 has-focus-visible:outline-offset-2">
+                  <input
+                    type="radio"
+                    name="video-tag"
+                    value={key}
+                    class="sr-only"
+                    checked={key === ''}
+                  />
+                  {key === '' ? label : `#${label}`}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        )}
         <p
           id="video-count"
           role="status"
@@ -731,7 +754,7 @@ const navIconClass =
     );
   }
 
-  // タイトル・チャンネル名での検索と、種別・カテゴリでの絞り込み。
+  // タイトル・チャンネル名・メモ・タグでの検索と、種別・カテゴリ・タグでの絞り込み。
   const filter = document.querySelector<HTMLElement>('#video-filter');
   const query = document.querySelector<HTMLInputElement>('#video-query');
   const count = document.querySelector<HTMLElement>('#video-count');
@@ -741,6 +764,18 @@ const navIconClass =
   const categoryInputs = Array.from(
     document.querySelectorAll<HTMLInputElement>('input[name="video-category"]'),
   );
+  const tagInputs = Array.from(
+    document.querySelectorAll<HTMLInputElement>('input[name="video-tag"]'),
+  );
+  const parseTags = (value: string | undefined): string[] => {
+    if (!value) return [];
+    try {
+      const parsed: unknown = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed.filter((tag) => typeof tag === 'string') : [];
+    } catch {
+      return [];
+    }
+  };
   const isVideoKind = (value: string | undefined): value is VideoKind =>
     VIDEO_KINDS.some((kind) => kind === value);
   const disclosures = new Map(
@@ -765,6 +800,7 @@ const navIconClass =
       searchText: normalizeSearchText(item.dataset.search ?? ''),
       kind: isVideoKind(item.dataset.kind) ? item.dataset.kind : undefined,
       categories: (item.dataset.categories ?? '').split(' ').filter(Boolean),
+      tags: parseTags(item.dataset.tags),
     },
   }));
   // 内側のまとまりから先に判定するため、文書順の逆に並べる。
@@ -779,6 +815,8 @@ const navIconClass =
         terms: parseSearchTerms(query.value),
         kind: isVideoKind(selectedKind) ? selectedKind : ('all' as const),
         category: categoryInputs.find((input) => input.checked)?.value ?? 'all',
+        // 「すべて」の値は空文字。
+        tag: tagInputs.find((input) => input.checked)?.value || undefined,
       };
       const active = isFilterActive(videoFilter);
       for (const button of disclosures.values()) {
@@ -825,7 +863,7 @@ const navIconClass =
     filter.hidden = false;
     updateResults();
     query.addEventListener('input', updateResults);
-    for (const input of [...kindInputs, ...categoryInputs]) {
+    for (const input of [...kindInputs, ...categoryInputs, ...tagInputs]) {
       input.addEventListener('change', updateResults);
     }
     for (const button of disclosures.values()) {
