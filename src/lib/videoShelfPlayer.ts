@@ -52,9 +52,17 @@ function query<T extends Element>(root: ParentNode, selector: string): T | null 
   return root.querySelector<T>(selector);
 }
 
-export function initVideoShelfPlayer(): void {
+/** 再生ステージの状態を読むための窓口（開発環境の区間の記録で使う）。 */
+export interface VideoShelfPlayerHandle {
+  /** 今の項目のカード。まだ選ばれていなければ `undefined` */
+  currentCard(): HTMLAnchorElement | undefined;
+  /** 今の再生位置（秒）。プレイヤーをAPIで制御できない場合は `undefined` */
+  currentTime(): number | undefined;
+}
+
+export function initVideoShelfPlayer(): VideoShelfPlayerHandle | undefined {
   const stage = query<HTMLElement>(document, '[data-video-stage]');
-  if (!stage) return;
+  if (!stage) return undefined;
 
   const embedBaseUrl = stage.dataset.embedBase ?? '';
   const frame = query<HTMLElement>(stage, '[data-stage-frame]');
@@ -75,7 +83,7 @@ export function initVideoShelfPlayer(): void {
   const presetLinks = Array.from(
     document.querySelectorAll<HTMLAnchorElement>('[data-preset-link]'),
   );
-  if (!frame) return;
+  if (!frame) return undefined;
 
   const cards = Array.from(document.querySelectorAll<HTMLAnchorElement>('[data-video-card]'));
   const keyOf = (card: HTMLElement) => card.dataset.itemKey ?? card.dataset.videoId ?? '';
@@ -621,4 +629,12 @@ export function initVideoShelfPlayer(): void {
     ? presetLinks.find((link) => link.dataset.presetId === presetId)
     : undefined;
   if (presetLink) applyPreset(presetLink, 'cue');
+
+  return {
+    currentCard: () => (currentKey ? cardInQueue(currentKey) : undefined),
+    currentTime: () => {
+      const time = player?.getCurrentTime();
+      return typeof time === 'number' && Number.isFinite(time) ? time : undefined;
+    },
+  };
 }

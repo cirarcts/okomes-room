@@ -6,6 +6,7 @@ import {
   isSegment,
   parseTimestamp,
   playlistItemKey,
+  segmentDraftJson,
   sortPlaylists,
   type PlaylistInput,
 } from './videoPlaylist';
@@ -195,5 +196,51 @@ describe('sortPlaylists', () => {
       { id: 'a', order: 10 },
     ]);
     expect(sorted.map((entry) => entry.id)).toEqual(['c', 'a', 'b']);
+  });
+});
+
+describe('segmentDraftJson', () => {
+  const base = { video: 'aaaaaaaaaaa', channel: 'alpha', title: 'A' };
+
+  it('playlists.json の項目の形にする（開始は切り捨て、終了は切り上げ）', () => {
+    expect(
+      JSON.parse(segmentDraftJson({ ...base, startSeconds: 247.8, endSeconds: 308.2 })),
+    ).toEqual({ video: 'aaaaaaaaaaa', channel: 'alpha', title: 'A', start: '4:07', end: '5:09' });
+  });
+
+  it('1時間を超える時刻は h:mm:ss にする', () => {
+    expect(
+      JSON.parse(segmentDraftJson({ ...base, startSeconds: 3910, endSeconds: 3925 })),
+    ).toMatchObject({
+      start: '1:05:10',
+      end: '1:05:25',
+    });
+  });
+
+  it('開始が0なら start を書かず、終了がなければ end を書かない', () => {
+    const json = JSON.parse(segmentDraftJson({ ...base, startSeconds: 0.4, endSeconds: 60 }));
+    expect(json).not.toHaveProperty('start');
+    expect(json.end).toBe('1:00');
+    expect(JSON.parse(segmentDraftJson({ ...base, startSeconds: 90 }))).not.toHaveProperty('end');
+  });
+
+  it('タイトルがなければ空にする（YouTubeで確認して記入してもらう）', () => {
+    expect(
+      JSON.parse(segmentDraftJson({ video: 'aaaaaaaaaaa', channel: 'alpha', startSeconds: 5 }))
+        .title,
+    ).toBe('');
+  });
+
+  it('記入した区間は、そのまま parseTimestamp で同じ秒に戻る', () => {
+    const json = JSON.parse(segmentDraftJson({ ...base, startSeconds: 750, endSeconds: 1125 }));
+    expect(parseTimestamp(json.start)).toBe(750);
+    expect(parseTimestamp(json.end)).toBe(1125);
+  });
+
+  it('終了が開始以前、または時刻が不正ならエラー', () => {
+    expect(() => segmentDraftJson({ ...base, startSeconds: 60, endSeconds: 60 })).toThrow();
+    expect(() => segmentDraftJson({ ...base, startSeconds: 60.5, endSeconds: 60.2 })).toThrow();
+    expect(() => segmentDraftJson({ ...base, startSeconds: -1 })).toThrow();
+    expect(() => segmentDraftJson({ ...base, startSeconds: Number.NaN })).toThrow();
   });
 });

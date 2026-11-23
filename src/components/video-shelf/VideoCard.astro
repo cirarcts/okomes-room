@@ -18,6 +18,13 @@ interface Props {
   thumbnailUrl: string;
   channelName: string;
   channelUrl: string;
+  /** 公開元チャンネルのslug（`channels.json` の `id`） */
+  channel: string;
+  /**
+   * タイトルを手動で記入したか（おすすめ・プレイリスト）。APIで取得したタイトルは、
+   * 区間の記録（開発環境）で書き写さない（API Dataを保存しないため）。
+   */
+  manualTitle?: boolean;
   /** 種別。手動で登録した動画などで未取得の場合は省略する。 */
   kind?: VideoKind;
   durationSeconds?: number;
@@ -53,6 +60,8 @@ const {
   thumbnailUrl,
   channelName,
   channelUrl,
+  channel,
+  manualTitle = false,
   kind,
   durationSeconds,
   viewCount,
@@ -95,6 +104,8 @@ const segment = playlistItem && formatSegment(playlistItem);
     data-title={title}
     data-channel-name={channelName}
     data-channel-url={channelUrl}
+    data-channel={channel}
+    data-manual-title={manualTitle ? '' : undefined}
   >
     {/* サムネイルは改変・被覆しない（規約）。種別や長さは画像の外に表示する。 */}
     <img
