@@ -112,6 +112,12 @@ const fetchedAtFormat = new Intl.DateTimeFormat(locale, {
 const countLabel = (count: number) =>
   locale === 'en' && count === 1 ? '1 video' : t.videoCount.replace('{count}', String(count));
 const hasApiData = uploadsById.size > 0;
+
+// 前へ・次へ。狭い画面では横長のボタン、広い画面ではプレイヤーの左右に「ラベル＋大きなアイコン」を縦に並べる。
+const navButtonClass =
+  'group bg-surface border-muted/30 hover:border-accent/60 text-fg inline-flex min-h-11 items-center justify-center gap-2 rounded-full border px-4 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40 lg:flex-col lg:rounded-xl lg:border-0 lg:bg-transparent lg:px-0 lg:text-muted lg:enabled:hover:text-fg';
+const navIconClass =
+  'grid place-items-center text-accent lg:bg-surface lg:border-muted/40 lg:size-18 lg:rounded-xl lg:border-2 lg:shadow-[0_0_24px_-10px] lg:shadow-cyan-400/40 lg:transition-colors lg:group-enabled:group-hover:border-accent/70';
 ---
 
 <BaseLayout title={t.videoShelfTitle} description={t.videoShelfDescription}>
@@ -137,74 +143,114 @@ const hasApiData = uploadsById.size > 0;
 
     {hasVideos ? (
       // 再生ステージ。動画を選ぶまでは案内を表示する。JavaScriptが無効な場合は再生できないため、スクリプトで表示する。
-      <div
-        class="mx-auto mb-10 grid w-full max-w-4xl gap-3"
-        data-video-stage
-        data-embed-base={EMBED_BASE_URL}
-        hidden
-      >
-        <div
-          class="border-accent/30 relative aspect-video w-full overflow-hidden rounded-lg border bg-black shadow-[0_0_40px_-12px] shadow-cyan-400/30"
-          data-stage-frame
-        >
-          <div class="text-muted absolute inset-0 grid place-content-center justify-items-center gap-4 p-6 text-center">
-            <span
-              class="border-accent/40 text-accent/70 grid size-14 place-items-center rounded-full border-2 border-dashed sm:size-16"
-              aria-hidden="true"
-            >
-              <svg viewBox="0 0 24 24" class="ml-1 size-6 fill-current sm:size-7">
-                <path d="M8 5v14l11-7z" />
+      <div class="mb-10 grid gap-3" data-video-stage data-embed-base={EMBED_BASE_URL} hidden>
+        {/*
+          プレイヤーと前へ・次へ。広い画面ではプレイヤーの左右、狭い画面ではプレイヤーの下に並べる。
+          ボタンはプレイヤーに重ねない（規約 RMF）。動画を選ぶまでは表示しない。
+        */}
+        <div class="grid grid-cols-2 gap-3 lg:grid-cols-[5.5rem_minmax(0,56rem)_5.5rem] lg:items-center lg:justify-center lg:gap-5">
+          <div
+            class="border-accent/30 relative col-span-2 aspect-video w-full lg:col-span-1 lg:col-start-2 lg:row-start-1 overflow-hidden rounded-lg border bg-black shadow-[0_0_40px_-12px] shadow-cyan-400/30"
+            data-stage-frame
+          >
+            <div class="text-muted absolute inset-0 grid place-content-center justify-items-center gap-4 p-6 text-center">
+              <span
+                class="border-accent/40 text-accent/70 grid size-14 place-items-center rounded-full border-2 border-dashed sm:size-16"
+                aria-hidden="true"
+              >
+                <svg viewBox="0 0 24 24" class="ml-1 size-6 fill-current sm:size-7">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </span>
+              <p class="text-sm text-balance sm:text-lg">{t.stagePlaceholder}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            class={`${navButtonClass} lg:col-start-1 lg:row-start-1`}
+            data-player-prev
+            data-player-nav
+            hidden
+          >
+            <span class={navIconClass} aria-hidden="true">
+              <svg viewBox="0 0 24 24" class="size-5 fill-current lg:size-7">
+                <path d="M6 5h2.5v14H6zM19 5v14L9.5 12z" />
               </svg>
             </span>
-            <p class="text-sm text-balance sm:text-lg">{t.stagePlaceholder}</p>
-          </div>
+            <span class="lg:order-first">{t.previousVideo}</span>
+          </button>
+          <button
+            type="button"
+            class={`${navButtonClass} lg:col-start-3 lg:row-start-1`}
+            data-player-next
+            data-player-nav
+            hidden
+          >
+            <span>{t.nextVideo}</span>
+            <span class={navIconClass} aria-hidden="true">
+              <svg viewBox="0 0 24 24" class="size-5 fill-current lg:size-7">
+                <path d="M15.5 5H18v14h-2.5zM5 5v14l9.5-7z" />
+              </svg>
+            </span>
+          </button>
         </div>
-        {/* タイトル・公開元・YouTubeへのリンク。最初の動画が選ばれた時点でスクリプトが中身を作る。 */}
-        <div class="grid gap-1" data-stage-info data-msg-open={t.openOnYouTube} hidden />
-        {/* 再生の操作欄。プレイヤーには重ねず、下に置く（規約 RMF）。動画を選ぶまでは表示しない。 */}
-        <div
-          class="border-muted/20 grid gap-3 border-t pt-3"
-          data-player-controls
-          data-msg-position={t.queuePosition}
-          data-msg-queue-end={t.queueEnd}
-          data-msg-cued={t.nextCued}
-          data-msg-autoplay-blocked={t.autoplayBlocked}
-          data-msg-not-found={t.errorNotFound}
-          data-msg-not-embeddable={t.errorNotEmbeddable}
-          data-msg-identification={t.errorIdentification}
-          data-msg-playback={t.errorPlayback}
-          hidden
-        >
-          <div class="flex flex-wrap items-center gap-3">
-            <div class="flex gap-2">
-              <button
-                type="button"
-                class="bg-surface border-muted/30 hover:border-accent/60 inline-flex min-h-11 items-center gap-1 rounded-full border px-4 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40"
-                data-player-prev
-              >
-                <span aria-hidden="true">←</span>
-                {t.previousVideo}
-              </button>
-              <button
-                type="button"
-                class="bg-surface border-muted/30 hover:border-accent/60 inline-flex min-h-11 items-center gap-1 rounded-full border px-4 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40"
-                data-player-next
-              >
-                {t.nextVideo}
-                <span aria-hidden="true">→</span>
-              </button>
+        <div class="mx-auto grid w-full max-w-4xl gap-3">
+          {/* タイトル・公開元・YouTubeへのリンク。最初の動画が選ばれた時点でスクリプトが中身を作る。 */}
+          <div class="grid gap-1" data-stage-info data-msg-open={t.openOnYouTube} hidden />
+          {/* 再生の操作欄。プレイヤーには重ねず、下に置く（規約 RMF）。動画を選ぶまでは表示しない。 */}
+          <div
+            class="border-muted/20 grid gap-3 border-t pt-3"
+            data-player-controls
+            data-msg-position={t.queuePosition}
+            data-msg-position-shuffle={t.queuePositionShuffle}
+            data-msg-queue-end={t.queueEnd}
+            data-msg-queue-repeat={t.queueRepeat}
+            data-msg-queue-reshuffle={t.queueReshuffle}
+            data-msg-cued={t.nextCued}
+            data-msg-autoplay-blocked={t.autoplayBlocked}
+            data-msg-not-found={t.errorNotFound}
+            data-msg-not-embeddable={t.errorNotEmbeddable}
+            data-msg-identification={t.errorIdentification}
+            data-msg-playback={t.errorPlayback}
+            hidden
+          >
+            {/* 再生方法と繰り返し。設定はブラウザに保存しない。 */}
+            <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
+              <fieldset class="flex flex-wrap items-center gap-2">
+                <legend class="text-muted float-left mr-1 text-sm">{t.playOrder}</legend>
+                {(
+                  [
+                    ['ordered', t.playOrdered],
+                    ['shuffle', t.playShuffle],
+                  ] as const
+                ).map(([value, label]) => (
+                  <label class="cursor-pointer">
+                    <input
+                      type="radio"
+                      name="video-shelf-play-order"
+                      value={value}
+                      class="peer sr-only"
+                      data-player-order
+                      checked={value === 'ordered'}
+                    />
+                    <span class="bg-surface border-muted/30 peer-checked:border-accent/70 peer-checked:bg-accent/15 peer-checked:text-fg text-muted peer-focus-visible:outline-accent hover:border-accent/60 inline-flex min-h-11 items-center rounded-full border px-4 text-sm transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2">
+                      {label}
+                    </span>
+                  </label>
+                ))}
+              </fieldset>
+              <label class="inline-flex min-h-11 cursor-pointer items-center gap-2 text-sm">
+                <input type="checkbox" role="switch" class="peer sr-only" data-player-repeat />
+                <span
+                  class="bg-surface border-muted/40 peer-checked:border-accent/70 peer-checked:bg-accent/20 peer-focus-visible:outline-accent relative h-6 w-11 rounded-full border transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 after:absolute after:top-0.5 after:left-0.5 after:size-4.5 after:rounded-full after:bg-current after:transition-transform peer-checked:after:translate-x-5"
+                  aria-hidden="true"
+                ></span>
+                {t.repeatQueue}
+              </label>
             </div>
-            <label class="inline-flex min-h-11 cursor-pointer items-center gap-2 text-sm">
-              <input type="checkbox" role="switch" class="peer sr-only" data-player-autoplay />
-              <span
-                class="bg-surface border-muted/40 peer-checked:border-accent/70 peer-checked:bg-accent/20 peer-focus-visible:outline-accent relative h-6 w-11 rounded-full border transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 after:absolute after:top-0.5 after:left-0.5 after:size-4.5 after:rounded-full after:bg-current after:transition-transform peer-checked:after:translate-x-5"
-                aria-hidden="true"
-              ></span>
-              {t.autoAdvance}
-            </label>
+            <p class="text-muted text-xs" aria-live="polite" data-player-position></p>
+            <p class="text-warm text-sm empty:hidden" role="status" data-player-message></p>
           </div>
-          <p class="text-muted text-xs" aria-live="polite" data-player-position></p>
-          <p class="text-warm text-sm empty:hidden" role="status" data-player-message></p>
         </div>
       </div>
     ) : (
@@ -480,7 +526,7 @@ const hasApiData = uploadsById.size > 0;
     type VideoKind,
   } from '../lib/videoShelf';
 
-  // 再生ステージ（前へ・次へ、連続再生、再生できない動画の処理）。
+  // 再生ステージ（前へ・次へ、連続再生、再生できない動画の処理）。連続再生は常にON。
   initVideoShelfPlayer();
 
   // タイトル・チャンネル名での検索と、種別・カテゴリでの絞り込み。

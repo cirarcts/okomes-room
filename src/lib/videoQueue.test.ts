@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
   canAutoplay,
+  findFirstPlayable,
   findNext,
   findPrevious,
   queuePosition,
+  shuffleVideoIds,
   visibleRatioOf,
   type VideoQueue,
 } from './videoQueue';
@@ -97,5 +99,99 @@ describe('visibleRatioOf', () => {
   it('画面外や大きさ0なら 0', () => {
     expect(visibleRatioOf({ top: 900, right: 500, bottom: 1200, left: 0 }, viewport)).toBe(0);
     expect(visibleRatioOf({ top: 100, right: 0, bottom: 200, left: 0 }, viewport)).toBe(0);
+  });
+});
+
+describe('findFirstPlayable', () => {
+  it('先頭から最初の再生できる動画を返す', () => {
+    expect(findFirstPlayable(queue)).toBe('a');
+    expect(findFirstPlayable(queue, { skip: new Set(['a', 'b']) })).toBe('c');
+  });
+
+  it('すべて飛ばす対象、または空の棚なら undefined', () => {
+    expect(findFirstPlayable(queue, { skip: new Set(queue.videoIds) })).toBeUndefined();
+    expect(findFirstPlayable({ ...queue, videoIds: [] })).toBeUndefined();
+  });
+});
+
+describe('shuffleVideoIds', () => {
+  // 常に0を返す乱数では、Fisher–Yatesは [a, b, c, d] → [b, c, d, a] になる。
+  const zero = () => 0;
+  // 0.999… を返す乱数では、入れ替えが起きず元の順のままになる。
+  const keep = () => 0.999;
+
+  it('乱数に従って並べ替え、すべての動画を1回ずつ含む', () => {
+    expect(shuffleVideoIds(queue.videoIds, { random: zero })).toEqual(['b', 'c', 'd', 'a']);
+    expect(shuffleVideoIds(queue.videoIds, { random: keep })).toEqual(['a', 'b', 'c', 'd']);
+    const shuffled = shuffleVideoIds(queue.videoIds);
+    expect([...shuffled].sort()).toEqual(['a', 'b', 'c', 'd']);
+  });
+
+  it('元の配列を変更しない', () => {
+    const ids = ['a', 'b', 'c'];
+    shuffleVideoIds(ids, { random: zero });
+    expect(ids).toEqual(['a', 'b', 'c']);
+  });
+
+  it('重複した動画は1回だけにする', () => {
+    expect(shuffleVideoIds(['a', 'b', 'a', 'c'], { random: keep })).toEqual(['a', 'b', 'c']);
+  });
+
+  it('first に指定した動画を先頭に固定し、残りをシャッフルする', () => {
+    expect(shuffleVideoIds(queue.videoIds, { random: zero, first: 'c' })).toEqual([
+      'c',
+      'b',
+      'd',
+      'a',
+    ]);
+  });
+
+  it('棚にない動画は first に指定しても加えない', () => {
+    expect(shuffleVideoIds(queue.videoIds, { random: keep, first: 'x' })).toEqual([
+      'a',
+      'b',
+      'c',
+      'd',
+    ]);
+  });
+
+  it('avoidFirst の動画が先頭に来たら、次の動画と入れ替える', () => {
+    expect(shuffleVideoIds(queue.videoIds, { random: keep, avoidFirst: 'a' })).toEqual([
+      'b',
+      'a',
+      'c',
+      'd',
+    ]);
+  });
+
+  it('avoidFirst は、飛ばす動画を除いた最初の再生位置で判定する', () => {
+    const skip = new Set(['a', 'b']);
+    expect(shuffleVideoIds(queue.videoIds, { random: keep, avoidFirst: 'c', skip })).toEqual([
+      'a',
+      'b',
+      'd',
+      'c',
+    ]);
+  });
+
+  it('ほかに再生できる動画がなければ、avoidFirst の動画をそのまま先頭にする', () => {
+    expect(shuffleVideoIds(['a'], { avoidFirst: 'a' })).toEqual(['a']);
+    const skip = new Set(['b', 'c', 'd']);
+    expect(shuffleVideoIds(queue.videoIds, { random: keep, avoidFirst: 'a', skip })).toEqual([
+      'a',
+      'b',
+      'c',
+      'd',
+    ]);
+  });
+
+  it('何度シャッフルしても、avoidFirst の動画が最初に再生されない', () => {
+    for (let trial = 0; trial < 200; trial += 1) {
+      expect(shuffleVideoIds(queue.videoIds, { avoidFirst: 'b' })[0]).not.toBe('b');
+    }
+  });
+
+  it('空の棚では空の配列を返す', () => {
+    expect(shuffleVideoIds([])).toEqual([]);
   });
 });
