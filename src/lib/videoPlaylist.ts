@@ -4,7 +4,7 @@
  * （チャンネルをまたいで並べても、規約 III.E.2 の API Data の集約にあたらないようにするため）。
  * DOMに依存しない純粋関数だけを置く。
  */
-import { formatDuration, type ShelfChannel } from './videoShelf';
+import { formatDuration, normalizeSearchText, type ShelfChannel } from './videoShelf';
 
 /** 区間の時刻の書式（`ss`、`m:ss`、`h:mm:ss`）。 */
 export const TIMESTAMP_PATTERN = /^(?:\d+|\d+:[0-5]\d|\d+:[0-5]\d:[0-5]\d)$/;
@@ -31,6 +31,8 @@ export interface PlaylistItemInput {
   note?: string;
   /** ランダム再生の重み（1〜10、省略時は1）。大きいほど周の前のほうに来やすい */
   weight?: number;
+  /** シーンを探すためのタグ（例：`["ティガレックス", "神回"]`） */
+  tags?: readonly string[];
 }
 
 export interface PlaylistInput {
@@ -53,6 +55,8 @@ export interface PlaylistItem {
   endSeconds?: number;
   /** ランダム再生の重み */
   weight: number;
+  /** タグ（記入した表記のまま）。ないときは空 */
+  tags: string[];
   channelData: ShelfChannel;
 }
 
@@ -62,6 +66,28 @@ export interface Playlist {
   nameEn: string;
   order: number;
   items: PlaylistItem[];
+}
+
+/** タグを比べるときの形（全角・半角や大文字・小文字の違いを無視する）。 */
+export const tagKey = (tag: string): string => normalizeSearchText(tag.trim());
+
+/**
+ * 絞り込みのチップに並べるタグ。プレイリストの並び順で最初に出てきた順に、表記ゆれをまとめて返す
+ * （表示には最初に出てきた表記を使う）。`key` は `tagKey` の値。
+ */
+export function collectTags(
+  playlists: readonly Pick<Playlist, 'items'>[],
+): { key: string; label: string }[] {
+  const tags = new Map<string, string>();
+  for (const { items } of playlists) {
+    for (const { tags: itemTags } of items) {
+      for (const tag of itemTags) {
+        const key = tagKey(tag);
+        if (!tags.has(key)) tags.set(key, tag.trim());
+      }
+    }
+  }
+  return Array.from(tags, ([key, label]) => ({ key, label }));
 }
 
 /** キューで使う項目のキー。区間のない項目は動画IDそのもの（ほかの棚のカードと同じ扱い）。 */
@@ -166,6 +192,12 @@ export function buildPlaylist(
     const key = playlistItemKey(input.video, start, endSeconds);
     if (seen.has(key)) throw new Error(`${where}は同じプレイリストに重複しています。`);
     seen.add(key);
+    const tags = input.tags ?? [];
+    const tagKeys = tags.map(tagKey);
+    const duplicateTag = tags.find((_, i) => tagKeys.indexOf(tagKeys[i]) !== i);
+    if (duplicateTag !== undefined) {
+      throw new Error(`${where}のタグ "${duplicateTag}" が重複しています。`);
+    }
     if (!channelData.enabled) return;
     items.push({
       key,
@@ -175,6 +207,7 @@ export function buildPlaylist(
       startSeconds: start,
       endSeconds,
       weight: input.weight ?? 1,
+      tags: [...tags],
       channelData,
     });
   });

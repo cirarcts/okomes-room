@@ -1,7 +1,7 @@
 ---
 import type { Locale } from '../../lib/locale';
 import { messages } from '../../lib/messages';
-import { formatSegment } from '../../lib/videoPlaylist';
+import { formatSegment, tagKey } from '../../lib/videoPlaylist';
 import {
   formatDuration,
   formatViewCount,
@@ -49,6 +49,8 @@ interface Props {
     note?: string;
     /** ランダム再生の重み（1は指定なしと同じ） */
     weight?: number;
+    /** シーンを探すためのタグ */
+    tags?: readonly string[];
   };
 }
 
@@ -76,6 +78,7 @@ const dateFormat = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZo
 const kindLabel = { live: t.kindLive, shorts: 'Shorts', regular: undefined };
 const badge = kind && kindLabel[kind];
 const segment = playlistItem && formatSegment(playlistItem);
+const tags = playlistItem?.tags ?? [];
 ---
 
 <li
@@ -89,7 +92,8 @@ const segment = playlistItem && formatSegment(playlistItem);
   data-older-video={older ? '' : undefined}
   data-kind={kind}
   data-categories={categories.join(' ')}
-  data-search={[title, channelName, playlistItem?.note].filter(Boolean).join(' ')}
+  data-search={[title, channelName, playlistItem?.note, ...tags].filter(Boolean).join(' ')}
+  data-tags={tags.length > 0 ? JSON.stringify(tags.map(tagKey)) : undefined}
 >
   {/* JavaScriptが有効なときは再生ステージで再生し、無効なときはYouTubeの視聴ページを開く。 */}
   <a
@@ -160,6 +164,13 @@ const segment = playlistItem && formatSegment(playlistItem);
         <span>{t.views.replace('{count}', formatViewCount(viewCount, locale))}</span>
       )}
     </p>
+  )}
+  {tags.length > 0 && (
+    <ul class="-mt-1 flex flex-wrap gap-1.5 px-4 pb-3 text-xs" aria-label={t.tags}>
+      {tags.map((tag) => (
+        <li class="bg-subtle text-muted rounded-sm px-1.5 py-0.5">#{tag}</li>
+      ))}
+    </ul>
   )}
   {/* 公開元を明示する。チャンネル名はYouTubeのチャンネルページへのリンク。 */}
   <p class="text-muted -mt-2 flex flex-wrap justify-between gap-x-3 px-4 pb-4 text-sm">
