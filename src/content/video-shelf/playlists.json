@@ -1,1 +1,44 @@
-[]
+[
+  {
+    "id": "die-gest",
+    "name": "Dieジェスト集",
+    "nameEn": "Die-gest Collection",
+    "items": [
+      {
+        "video": "1eTJw-Wxqf4",
+        "channel": "tirunitora",
+        "title": "【伝説回】裏ボス裸ノーダメしてきました！【MHP2G】",
+        "start": "4:07",
+        "end": "5:09"
+      },
+      {
+        "video": "XSI42vlm6u8",
+        "channel": "tirunitora",
+        "title": "【MHP2G】ラスボス裸ノーダメしてきました！",
+        "start": "2:35",
+        "end": "3:58"
+      },
+      {
+        "video": "2j3y6G6NyMU",
+        "channel": "tirunitora",
+        "title": "【神回】この問題が解けたら真のプロハン！【MHP2G】",
+        "start": "3:56",
+        "end": "6:16"
+      },
+      {
+        "video": "e1-_9kLP80M",
+        "channel": "tirunitora",
+        "title": "【神回】もう二度と受注しません！【MHP2G】",
+        "start": "2:02",
+        "end": "3:29"
+      },
+      {
+        "video": "U3CVs0LEd-0",
+        "channel": "tirunitora",
+        "title": "マジで絶対強者だった時代のティガレックス君【MHP2G】",
+        "start": "0:56",
+        "end": "2:05"
+      }
+    ]
+  }
+]
