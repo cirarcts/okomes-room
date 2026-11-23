@@ -1,6 +1,7 @@
 ---
 import type { Locale } from '../../lib/locale';
 import { messages } from '../../lib/messages';
+import { formatSegment } from '../../lib/videoPlaylist';
 import {
   formatDuration,
   formatViewCount,
@@ -12,7 +13,8 @@ interface Props {
   locale: Locale;
   videoId: string;
   title: string;
-  publishedAt: Date;
+  /** 公開日。プレイリストの項目では省略できる。 */
+  publishedAt?: Date;
   thumbnailUrl: string;
   channelName: string;
   channelUrl: string;
@@ -29,6 +31,11 @@ interface Props {
    */
   variant?: 'grid' | 'shelf' | 'compact';
   older?: boolean;
+  /**
+   * プレイリストの項目の情報。`key` はキュー内で項目を区別するキー、区間は秒で指定する。
+   * 指定すると「全編」「区間」の表示と、自分用のメモを出す。
+   */
+  playlistItem?: { key: string; startSeconds?: number; endSeconds?: number; note?: string };
 }
 
 const {
@@ -45,12 +52,14 @@ const {
   categories,
   variant = 'grid',
   older,
+  playlistItem,
 } = Astro.props;
 const t = messages[locale];
 const dateFormat = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'Asia/Tokyo' });
 // 「通常」はラベルを付けず、区別が必要な種別だけを示す。
 const kindLabel = { live: t.kindLive, shorts: 'Shorts', regular: undefined };
 const badge = kind && kindLabel[kind];
+const segment = playlistItem && formatSegment(playlistItem);
 ---
 
 <li
@@ -64,14 +73,17 @@ const badge = kind && kindLabel[kind];
   data-older-video={older ? '' : undefined}
   data-kind={kind}
   data-categories={categories.join(' ')}
-  data-search={`${title} ${channelName}`}
+  data-search={[title, channelName, playlistItem?.note].filter(Boolean).join(' ')}
 >
   {/* JavaScriptが有効なときは再生ステージで再生し、無効なときはYouTubeの視聴ページを開く。 */}
   <a
-    href={youtubeWatchUrl(videoId)}
+    href={youtubeWatchUrl(videoId, playlistItem?.startSeconds)}
     class="group grid content-start gap-3 pb-4 outline-offset-[-2px]"
     data-video-card
     data-video-id={videoId}
+    data-item-key={playlistItem?.key ?? videoId}
+    data-start={playlistItem?.startSeconds}
+    data-end={playlistItem?.endSeconds}
     data-title={title}
     data-channel-name={channelName}
     data-channel-url={channelUrl}
@@ -94,13 +106,28 @@ const badge = kind && kindLabel[kind];
     >
       {title}
     </span>
+    {/* 自分用のメモ。YouTubeのタイトルは改変せず、別の行に添える。 */}
+    {playlistItem?.note && (
+      <span class="text-accent -mt-1 line-clamp-2 px-4 text-sm">{playlistItem.note}</span>
+    )}
     {/* 再生できなかった動画には、スクリプトが data-unplayable を付ける。 */}
     <span class="text-warm -mt-1 hidden px-4 text-xs group-data-[unplayable]/card:block">
       {t.unplayable}
     </span>
   </a>
-  {(badge || durationSeconds !== undefined || viewCount !== undefined) && (
+  {(badge || playlistItem || durationSeconds !== undefined || viewCount !== undefined) && (
     <p class="text-muted -mt-1 flex flex-wrap items-center gap-2 px-4 pb-3 text-xs">
+      {playlistItem && (
+        <span class="border-accent/50 text-accent rounded-sm border px-1.5 py-0.5">
+          {segment ? t.playlistSegment : t.playlistFull}
+        </span>
+      )}
+      {segment && (
+        <span class="font-mono">
+          <span class="sr-only">{t.playlistRange}: </span>
+          {segment}
+        </span>
+      )}
       {badge && (
         <span class="border-warm/50 text-warm rounded-sm border px-1.5 py-0.5">{badge}</span>
       )}
@@ -120,9 +147,11 @@ const badge = kind && kindLabel[kind];
     <a href={channelUrl} class="hover:text-fg underline-offset-4 hover:underline">
       {channelName}
     </a>
-    <time datetime={publishedAt.toISOString().slice(0, 10)}>
-      <span class="sr-only">{t.publishedOn}: </span>
-      {dateFormat.format(publishedAt)}
-    </time>
+    {publishedAt && (
+      <time datetime={publishedAt.toISOString().slice(0, 10)}>
+        <span class="sr-only">{t.publishedOn}: </span>
+        {dateFormat.format(publishedAt)}
+      </time>
+    )}
   </p>
 </li>

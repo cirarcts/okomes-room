@@ -4,6 +4,9 @@
  * - カードを押すと、そのカードがある棚をキューにして再生する（キューはチャンネルをまたがない）。
  * - 「前へ」「次へ」で棚の中を移動する。再生できない動画と、絞り込みで外れた動画は飛ばす。
  *   「過去の動画を見る」で開いていない動画は、画面に出ていなくても再生の対象にする。
+ * - キューの項目はカードの `data-item-key`（通常は動画ID、プレイリストの区間は区間を含むキー）で区別する。
+ *   区間の項目は `data-start` / `data-end`（秒）の範囲だけを再生し、終わったら次へ進む。
+ *   再生できない印は動画IDごとに付ける（同じ動画の別の区間も再生できないため）。
  * - 再生方法は「棚の順」と「ランダム」。ランダムでは棚の動画を1周ずつシャッフルし、1周の中で同じ動画を
  *   繰り返さない。「繰り返す」がONなら、棚の最後で最初に戻る（ランダムでは混ぜ直し、直前の動画は続けない）。
  * - 連続再生は常にON。動画の終了後に次へ進む。自動で再生するのは、プレイヤーの半分を超えて
@@ -16,7 +19,7 @@ import {
   findNext,
   findPrevious,
   queuePosition,
-  shuffleVideoIds,
+  shuffleQueueKeys,
   visibleRatioOf,
   type PlayOrder,
   type VideoQueue,
@@ -58,6 +61,11 @@ export function initVideoShelfPlayer(): void {
   if (!frame) return;
 
   const cards = Array.from(document.querySelectorAll<HTMLAnchorElement>('[data-video-card]'));
+  const keyOf = (card: HTMLElement) => card.dataset.itemKey ?? card.dataset.videoId ?? '';
+  const secondsOf = (value: string | undefined) => {
+    const seconds = value === undefined || value === '' ? NaN : Number(value);
+    return Number.isFinite(seconds) && seconds >= 0 ? seconds : undefined;
+  };
   const text = (key: string) => controls?.dataset[key] ?? '';
 
   // 棚ごとのキュー。カードの並び順がそのまま再生順になる。
@@ -66,51 +74,53 @@ export function initVideoShelfPlayer(): void {
     queues.set(element, {
       id: element.dataset.queueId ?? '',
       label: element.dataset.queueLabel ?? '',
-      videoIds: Array.from(
-        element.querySelectorAll<HTMLElement>('[data-video-card]'),
-        (card) => card.dataset.videoId ?? '',
-      ),
+      keys: Array.from(element.querySelectorAll<HTMLElement>('[data-video-card]'), keyOf),
     });
   }
 
   const unplayable = new Set<string>();
   let queueElement: HTMLElement | null = null;
-  let currentId: string | undefined;
+  let currentKey: string | undefined;
   let player: YouTubePlayer | undefined;
   let playerReady: Promise<YouTubePlayer | undefined> | undefined;
   let playOrder: PlayOrder = 'ordered';
   let repeat = false;
   // ランダム再生中の1周分の再生順（棚の動画IDのシャッフル）。
-  let shuffledIds: string[] | undefined;
+  let shuffledKeys: string[] | undefined;
 
   /** 押したカードがある棚（並び順は棚のまま）。 */
   const currentQueue = () => (queueElement ? queues.get(queueElement) : undefined);
   /** 実際の再生順。ランダム再生中はシャッフルした順。 */
   const playQueue = (): VideoQueue | undefined => {
     const queue = currentQueue();
-    return queue && playOrder === 'shuffle' && shuffledIds
-      ? { ...queue, videoIds: shuffledIds }
+    return queue && playOrder === 'shuffle' && shuffledKeys
+      ? { ...queue, keys: shuffledKeys }
       : queue;
   };
   // 今の動画を先頭にして、残りをシャッフルし直す。
-  const reshuffleFrom = (videoId: string | undefined) => {
+  const reshuffleFrom = (key: string | undefined) => {
     const queue = currentQueue();
-    shuffledIds =
-      queue && playOrder === 'shuffle'
-        ? shuffleVideoIds(queue.videoIds, { first: videoId })
-        : undefined;
+    shuffledKeys =
+      queue && playOrder === 'shuffle' ? shuffleQueueKeys(queue.keys, { first: key }) : undefined;
   };
 
-  const cardInQueue = (videoId: string) =>
+  const cardInQueue = (key: string) =>
     queueElement?.querySelector<HTMLAnchorElement>(
-      `[data-video-card][data-video-id="${CSS.escape(videoId)}"]`,
-    ) ?? cards.find((card) => card.dataset.videoId === videoId);
+      `[data-video-card][data-item-key="${CSS.escape(key)}"]`,
+    ) ?? cards.find((card) => keyOf(card) === key);
+  // 今の項目の動画ID。
+  let currentVideoId: string | undefined;
+  // 今の項目が読み込み後に再生を始めたか。区間の終了直後や同じ動画を読み直した直後に、
+  // 終了（0）のイベントが余分に届くことがあるため、再生を始めた項目の終了だけで次へ進む。
+  let startedSinceLoad = false;
 
   // 再生できない動画と、絞り込みで外れた動画を飛ばす。折りたたみで隠れているだけの動画は飛ばさない。
   const skipped = () => {
-    const skip = new Set(unplayable);
+    const skip = new Set<string>();
     for (const card of queueElement?.querySelectorAll<HTMLElement>('[data-video-card]') ?? []) {
-      if (card.closest('[data-filtered-out]')) skip.add(card.dataset.videoId ?? '');
+      if (card.closest('[data-filtered-out]') || unplayable.has(card.dataset.videoId ?? '')) {
+        skip.add(keyOf(card));
+      }
     }
     return skip;
   };
@@ -126,16 +136,16 @@ export function initVideoShelfPlayer(): void {
   const nextTarget = (): { id: string; notice?: string; apply?: () => void } | undefined => {
     const queue = playQueue();
     const shelf = currentQueue();
-    if (!queue || !shelf || !currentId) return undefined;
+    if (!queue || !shelf || !currentKey) return undefined;
     const skip = skipped();
-    const next = findNext(queue, currentId, { skip });
+    const next = findNext(queue, currentKey, { skip });
     if (next) return { id: next };
     if (!repeat) return undefined;
     if (playOrder === 'shuffle') {
-      const ids = shuffleVideoIds(shelf.videoIds, { avoidFirst: currentId, skip });
-      const id = findFirstPlayable({ ...shelf, videoIds: ids }, { skip });
+      const ids = shuffleQueueKeys(shelf.keys, { avoidFirst: currentKey, skip });
+      const id = findFirstPlayable({ ...shelf, keys: ids }, { skip });
       return id
-        ? { id, notice: text('msgQueueReshuffle'), apply: () => (shuffledIds = ids) }
+        ? { id, notice: text('msgQueueReshuffle'), apply: () => (shuffledKeys = ids) }
         : undefined;
     }
     const id = findFirstPlayable(shelf, { skip });
@@ -146,17 +156,17 @@ export function initVideoShelfPlayer(): void {
     const queue = playQueue();
     const skip = skipped();
     if (prevButton) {
-      prevButton.disabled = !queue || !currentId || !findPrevious(queue, currentId, { skip });
+      prevButton.disabled = !queue || !currentKey || !findPrevious(queue, currentKey, { skip });
     }
     if (nextButton) nextButton.disabled = !nextTarget();
     const position =
-      queue && currentId
+      queue && currentKey
         ? queuePosition(
             {
               ...queue,
-              videoIds: queue.videoIds.filter((id) => id === currentId || !skip.has(id)),
+              keys: queue.keys.filter((id) => id === currentKey || !skip.has(id)),
             },
-            currentId,
+            currentKey,
           )
         : undefined;
     if (positionEl) {
@@ -224,7 +234,7 @@ export function initVideoShelfPlayer(): void {
     if (watchEl) watchEl.href = card.href;
     // 同じ動画が複数の棚にある場合は、すべてを選択中にする。
     for (const other of cards) {
-      if (other.dataset.videoId === currentId) other.setAttribute('aria-current', 'true');
+      if (keyOf(other) === currentKey) other.setAttribute('aria-current', 'true');
       else other.removeAttribute('aria-current');
     }
     revealCard(card);
@@ -284,13 +294,19 @@ export function initVideoShelfPlayer(): void {
   };
 
   const handleStateChange = (state: number) => {
-    if (state === PlayerState.PLAYING && currentId) clearUnplayable(currentId);
-    if (state === PlayerState.ENDED) advance();
+    if (state === PlayerState.PLAYING) {
+      startedSinceLoad = true;
+      if (currentVideoId) clearUnplayable(currentVideoId);
+    }
+    if (state === PlayerState.ENDED && startedSinceLoad) {
+      startedSinceLoad = false;
+      advance();
+    }
   };
 
   const handleError = (code: number) => {
-    if (!currentId) return;
-    markUnplayable(currentId);
+    if (!currentVideoId) return;
+    markUnplayable(currentVideoId);
     const message = errorMessage(classifyPlayerError(code));
     updateControls();
     advance(message);
@@ -314,25 +330,34 @@ export function initVideoShelfPlayer(): void {
   };
 
   function load(
-    videoId: string,
+    key: string,
     mode: LoadMode,
     options: { message?: (string | undefined)[]; focusPlayer?: boolean } = {},
   ) {
-    if (!VIDEO_ID_PATTERN.test(videoId) || !frame) return;
-    currentId = videoId;
-    const card = cardInQueue(videoId);
+    const card = cardInQueue(key);
+    const videoId = card?.dataset.videoId ?? '';
+    if (!card || !VIDEO_ID_PATTERN.test(videoId) || !frame) return;
+    currentKey = key;
+    currentVideoId = videoId;
+    startedSinceLoad = false;
+    const segment = {
+      startSeconds: secondsOf(card.dataset.start),
+      endSeconds: secondsOf(card.dataset.end),
+    };
     setMessage((options.message ?? []).filter(Boolean).join(' '));
 
     const switchVideo = (target: YouTubePlayer) => {
-      if (mode === 'play') target.loadVideoById(videoId);
-      else target.cueVideoById(videoId);
+      const request = { videoId, ...segment };
+      if (mode === 'play') target.loadVideoById(request);
+      else target.cueVideoById(request);
     };
     // 初回（またはAPIが使えない場合）は、iframeを作り直す。
     const recreateFrame = () => {
       const iframe = createPlayerFrame({
         embedBaseUrl,
         videoId,
-        title: card?.dataset.title ?? 'YouTube video player',
+        ...segment,
+        title: card.dataset.title ?? 'YouTube video player',
         autoplay: mode === 'play',
       });
       frame.replaceChildren(iframe);
@@ -345,7 +370,7 @@ export function initVideoShelfPlayer(): void {
     } else if (playerReady) {
       // APIの準備中に切り替えた場合は、準備ができてから同じプレイヤーで切り替える。
       void playerReady.then((ready) => {
-        if (currentId !== videoId) return;
+        if (currentKey !== key) return;
         if (ready) switchVideo(ready);
         else recreateFrame();
       });
@@ -361,12 +386,12 @@ export function initVideoShelfPlayer(): void {
 
   // ユーザーがカードやボタンを押して再生を始める。
   const playFromCard = (card: HTMLAnchorElement) => {
-    const videoId = card.dataset.videoId ?? '';
-    if (!VIDEO_ID_PATTERN.test(videoId)) return false;
+    if (!VIDEO_ID_PATTERN.test(card.dataset.videoId ?? '')) return false;
+    const key = keyOf(card);
     queueElement = card.closest<HTMLElement>('[data-queue-id]');
-    reshuffleFrom(videoId);
+    reshuffleFrom(key);
     const isFirstPlay = !player && !playerReady;
-    load(videoId, 'play', { focusPlayer: isFirstPlay });
+    load(key, 'play', { focusPlayer: isFirstPlay });
 
     // プレイヤーが画面外にある場合（スマートフォンで一覧を下へ進んだときなど）は表示位置まで戻す。
     const rect = frame.getBoundingClientRect();
@@ -391,7 +416,7 @@ export function initVideoShelfPlayer(): void {
   prevButton?.addEventListener('click', () => {
     const queue = playQueue();
     const target =
-      queue && currentId ? findPrevious(queue, currentId, { skip: skipped() }) : undefined;
+      queue && currentKey ? findPrevious(queue, currentKey, { skip: skipped() }) : undefined;
     if (target) load(target, 'play');
   });
   nextButton?.addEventListener('click', () => {
@@ -409,7 +434,7 @@ export function initVideoShelfPlayer(): void {
       if (!input.checked) return;
       playOrder = input.value === 'shuffle' ? 'shuffle' : 'ordered';
       // 再生中に切り替えた場合は、今の動画から新しい順で続ける。
-      reshuffleFrom(currentId);
+      reshuffleFrom(currentKey);
       setMessage('');
       updateControls();
     });

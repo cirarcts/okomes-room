@@ -1,6 +1,8 @@
 /**
  * 動画の棚の再生キュー。キューは1つの棚（おすすめ、チャンネルの新着、代表作など）の中だけで作り、
- * チャンネルをまたがない（規約 III.E.2 の集約を避けるため）。
+ * APIで取得した棚ではチャンネルをまたがない（規約 III.E.2 の集約を避けるため）。
+ * キューの項目は「項目のキー」で表す。通常は動画IDそのもので、プレイリストの区間の項目は
+ * 区間を含むキーになる（同じ動画の別の区間を別の項目として扱うため。videoPlaylist.ts）。
  * DOMに依存しない純粋関数だけを置く。
  */
 
@@ -9,12 +11,12 @@ export interface VideoQueue {
   id: string;
   /** 棚の表示名（例：「FIA World Endurance Championship の新着」） */
   label: string;
-  /** 棚に並ぶ順の動画ID */
-  videoIds: readonly string[];
+  /** 棚に並ぶ順の項目のキー */
+  keys: readonly string[];
 }
 
 export interface QueueStepOptions {
-  /** 飛ばす動画ID（再生できない動画や、絞り込みで隠れている動画） */
+  /** 飛ばす項目のキー（再生できない動画や、絞り込みで隠れている動画） */
   skip?: ReadonlySet<string>;
 }
 
@@ -24,21 +26,17 @@ function step(
   direction: 1 | -1,
   { skip }: QueueStepOptions,
 ): string | undefined {
-  const start = queue.videoIds.indexOf(currentId);
+  const start = queue.keys.indexOf(currentId);
   if (start === -1) return undefined;
-  for (
-    let index = start + direction;
-    index >= 0 && index < queue.videoIds.length;
-    index += direction
-  ) {
-    const id = queue.videoIds[index];
+  for (let index = start + direction; index >= 0 && index < queue.keys.length; index += direction) {
+    const id = queue.keys[index];
     // 同じ動画が棚に重複している場合も、今の動画には戻らない。
     if (id !== currentId && !skip?.has(id)) return id;
   }
   return undefined;
 }
 
-/** 次に再生する動画ID。棚の最後なら `undefined`。 */
+/** 次に再生する項目のキー。棚の最後なら `undefined`。 */
 export function findNext(
   queue: VideoQueue,
   currentId: string,
@@ -47,7 +45,7 @@ export function findNext(
   return step(queue, currentId, 1, options);
 }
 
-/** 前に再生する動画ID。棚の先頭なら `undefined`。 */
+/** 前に再生する項目のキー。棚の先頭なら `undefined`。 */
 export function findPrevious(
   queue: VideoQueue,
   currentId: string,
@@ -61,28 +59,28 @@ export function queuePosition(
   queue: VideoQueue,
   currentId: string,
 ): { index: number; total: number } | undefined {
-  const index = queue.videoIds.indexOf(currentId);
-  return index === -1 ? undefined : { index: index + 1, total: queue.videoIds.length };
+  const index = queue.keys.indexOf(currentId);
+  return index === -1 ? undefined : { index: index + 1, total: queue.keys.length };
 }
 
 /** 再生方法。`ordered` は棚の並び順、`shuffle` はランダム。 */
 export type PlayOrder = 'ordered' | 'shuffle';
 
-/** 棚の中で、先頭から最初に再生できる動画ID。すべて飛ばす対象なら `undefined`。 */
+/** 棚の中で、先頭から最初に再生できる項目のキー。すべて飛ばす対象なら `undefined`。 */
 export function findFirstPlayable(
   queue: VideoQueue,
   { skip }: QueueStepOptions = {},
 ): string | undefined {
-  return queue.videoIds.find((id) => !skip?.has(id));
+  return queue.keys.find((id) => !skip?.has(id));
 }
 
 export interface ShuffleOptions {
   /** 0以上1未満の乱数を返す関数（テストで差し替える） */
   random?: () => number;
-  /** 先頭に固定する動画ID（ユーザーが選んだ動画から始める場合） */
+  /** 先頭に固定する項目のキー（ユーザーが選んだ動画から始める場合） */
   first?: string;
   /**
-   * 最初に再生される位置に来てほしくない動画ID（周回の境目で、直前の動画が続かないようにする）。
+   * 最初に再生される位置に来てほしくない項目のキー（周回の境目で、直前の動画が続かないようにする）。
    * 再生できる動画がほかにある場合だけ避ける。
    */
   avoidFirst?: string;
@@ -94,16 +92,16 @@ export interface ShuffleOptions {
  * 棚の動画をシャッフルした再生順を返す（Fisher–Yates）。
  * 同じ動画が棚に重複していても、1周の中では1回だけにする。
  */
-export function shuffleVideoIds(
-  videoIds: readonly string[],
+export function shuffleQueueKeys(
+  keys: readonly string[],
   { random = Math.random, first, avoidFirst, skip }: ShuffleOptions = {},
 ): string[] {
-  const ids = [...new Set(videoIds)].filter((id) => id !== first);
+  const ids = [...new Set(keys)].filter((id) => id !== first);
   for (let index = ids.length - 1; index > 0; index -= 1) {
     const swap = Math.floor(random() * (index + 1));
     [ids[index], ids[swap]] = [ids[swap], ids[index]];
   }
-  if (first !== undefined && videoIds.includes(first)) ids.unshift(first);
+  if (first !== undefined && keys.includes(first)) ids.unshift(first);
 
   if (avoidFirst !== undefined && avoidFirst !== first) {
     const playable = (id: string) => !skip?.has(id);
