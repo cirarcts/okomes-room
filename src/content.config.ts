@@ -177,7 +177,9 @@ const videoPresets = defineCollection({
     nameEn: z.string().min(1),
     // 小さいほど前に並べる。
     order: z.number().int().default(0),
-    queue: z.string().min(1),
+    // 対象の棚（キューの識別子）か、タグ（プレイリストの項目の tags）のどちらか一方を指定する。
+    queue: z.string().min(1).optional(),
+    tag: z.string().trim().min(1).optional(),
     playOrder: z.enum(['ordered', 'shuffle']).default('ordered'),
     repeat: z.boolean().default(false),
   }),

@@ -14,9 +14,10 @@
  *   見えていて、かつタブが表示中の場合だけ（規約 RMF）。それ以外は準備だけしてユーザーの操作を待つ。
  * - 「次に流れる動画」に、今の動画の後に再生される数本を並べる（押すとその動画へ移る）。
  * - 再生プリセット（`?preset=<id>` のリンク）は、棚と再生方法・繰り返しをまとめて設定して先頭から再生する。
+ *   タグのプリセットは、そのタグを持つプレイリストの項目を、プレイリストをまたいで集めたキューにする。
  *   URLから開いた場合は自動で再生せず、準備だけする。
  */
-import { formatSegment } from './videoPlaylist';
+import { formatSegment, parseTagKeys } from './videoPlaylist';
 import { presetIdFromSearch } from './videoPreset';
 import { VIDEO_ID_PATTERN } from './videoShelf';
 import {
@@ -93,26 +94,67 @@ export function initVideoShelfPlayer(): VideoShelfPlayerHandle | undefined {
   };
   const text = (key: string) => controls?.dataset[key] ?? '';
 
-  // 棚ごとのキュー。カードの並び順がそのまま再生順になる。
-  const queues = new Map<HTMLElement, VideoQueue>();
-  for (const element of document.querySelectorAll<HTMLElement>('[data-queue-id]')) {
-    const queueCards = Array.from(element.querySelectorAll<HTMLElement>('[data-video-card]'));
-    // ランダム再生の重み（プレイリストの項目だけが持つ）。棚ごとに持ち、ほかの棚の同じ動画には効かせない。
+  /** キューと、その項目のカード。カードの並び順がそのまま再生順になる。 */
+  interface QueueSource {
+    queue: VideoQueue;
+    cards: HTMLAnchorElement[];
+  }
+  const createSource = (
+    id: string,
+    label: string,
+    sourceCards: HTMLAnchorElement[],
+  ): QueueSource => {
+    // ランダム再生の重み（プレイリストの項目だけが持つ）。キューごとに持ち、ほかの棚の同じ動画には効かせない。
     const weights = new Map<string, number>();
-    for (const card of queueCards) {
+    for (const card of sourceCards) {
       const weight = Number(card.dataset.weight);
-      if (Number.isFinite(weight) && weight > 0 && weight !== 1) weights.set(keyOf(card), weight);
+      if (Number.isFinite(weight) && weight > 0 && weight !== 1 && !weights.has(keyOf(card))) {
+        weights.set(keyOf(card), weight);
+      }
     }
-    queues.set(element, {
-      id: element.dataset.queueId ?? '',
-      label: element.dataset.queueLabel ?? '',
-      keys: queueCards.map(keyOf),
-      weights: weights.size > 0 ? weights : undefined,
-    });
+    return {
+      queue: {
+        id,
+        label,
+        keys: sourceCards.map(keyOf),
+        weights: weights.size > 0 ? weights : undefined,
+      },
+      cards: sourceCards,
+    };
+  };
+
+  // 棚ごとのキュー。
+  const shelfSources = new Map<HTMLElement, QueueSource>();
+  for (const element of document.querySelectorAll<HTMLElement>('[data-queue-id]')) {
+    shelfSources.set(
+      element,
+      createSource(
+        element.dataset.queueId ?? '',
+        element.dataset.queueLabel ?? '',
+        Array.from(element.querySelectorAll<HTMLAnchorElement>('[data-video-card]')),
+      ),
+    );
   }
 
+  /**
+   * タグのキュー（タグのプリセット用）。そのタグを持つ項目を、プレイリストの並び順でまたいで集める。
+   * タグはプレイリストの項目（手動で記入したデータ）にだけあるため、APIの棚の動画は含まれない。
+   * 同じ項目（同じ動画・同じ区間）が複数のプレイリストにあれば、最初のカードだけを使う。
+   */
+  const tagSource = (tag: string, label: string): QueueSource => {
+    const seen = new Set<string>();
+    const tagged = cards.filter((card) => {
+      const key = keyOf(card);
+      const tags = parseTagKeys(card.closest<HTMLElement>('[data-video-item]')?.dataset.tags);
+      if (!tags.includes(tag) || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    return createSource(`tag:${tag}`, label, tagged);
+  };
+
   const unplayable = new Set<string>();
-  let queueElement: HTMLElement | null = null;
+  let source: QueueSource | undefined;
   let currentKey: string | undefined;
   let player: YouTubePlayer | undefined;
   let playerReady: Promise<YouTubePlayer | undefined> | undefined;
@@ -121,8 +163,8 @@ export function initVideoShelfPlayer(): VideoShelfPlayerHandle | undefined {
   // ランダム再生中の1周分の再生順（棚の動画IDのシャッフル）。
   let shuffledKeys: string[] | undefined;
 
-  /** 押したカードがある棚（並び順は棚のまま）。 */
-  const currentQueue = () => (queueElement ? queues.get(queueElement) : undefined);
+  /** 押したカードがある棚、またはタグのプリセットのキュー（並び順は元のまま）。 */
+  const currentQueue = () => source?.queue;
   /** 実際の再生順。ランダム再生中はシャッフルした順。 */
   const playQueue = (): VideoQueue | undefined => {
     const queue = currentQueue();
@@ -140,9 +182,7 @@ export function initVideoShelfPlayer(): VideoShelfPlayerHandle | undefined {
   };
 
   const cardInQueue = (key: string) =>
-    queueElement?.querySelector<HTMLAnchorElement>(
-      `[data-video-card][data-item-key="${CSS.escape(key)}"]`,
-    ) ?? cards.find((card) => keyOf(card) === key);
+    source?.cards.find((card) => keyOf(card) === key) ?? cards.find((card) => keyOf(card) === key);
   // 今の項目の動画ID。
   let currentVideoId: string | undefined;
   // 今の項目が読み込み後に再生を始めたか。区間の終了直後や同じ動画を読み直した直後に、
@@ -152,7 +192,7 @@ export function initVideoShelfPlayer(): VideoShelfPlayerHandle | undefined {
   // 再生できない動画と、絞り込みで外れた動画を飛ばす。折りたたみで隠れているだけの動画は飛ばさない。
   const skipped = () => {
     const skip = new Set<string>();
-    for (const card of queueElement?.querySelectorAll<HTMLElement>('[data-video-card]') ?? []) {
+    for (const card of source?.cards ?? []) {
       if (card.closest('[data-filtered-out]') || unplayable.has(card.dataset.videoId ?? '')) {
         skip.add(keyOf(card));
       }
@@ -505,24 +545,39 @@ export function initVideoShelfPlayer(): VideoShelfPlayerHandle | undefined {
     }
   };
 
-  const presetQueueElement = (link: HTMLAnchorElement) =>
-    document.querySelector<HTMLElement>(
-      `[data-queue-id="${CSS.escape(link.dataset.presetQueue ?? '')}"]`,
-    );
+  // プリセットのキュー。タグのプリセットはタグのキュー、それ以外は指定した棚のキュー。
+  const presetSources = new Map<HTMLAnchorElement, QueueSource | undefined>();
+  const presetSource = (link: HTMLAnchorElement) => {
+    if (!presetSources.has(link)) {
+      const { presetTag, presetQueue, presetName } = link.dataset;
+      const element = presetQueue
+        ? document.querySelector<HTMLElement>(`[data-queue-id="${CSS.escape(presetQueue)}"]`)
+        : null;
+      presetSources.set(
+        link,
+        presetTag
+          ? tagSource(presetTag, presetName ?? '')
+          : element
+            ? shelfSources.get(element)
+            : undefined,
+      );
+    }
+    return presetSources.get(link);
+  };
 
   /**
    * プリセットの棚・再生方法・繰り返しを設定し、最初に再生できる動画を読み込む。
    * @returns 読み込めたか（棚がない、または再生できる動画がない場合は false）
    */
   const applyPreset = (link: HTMLAnchorElement, mode: LoadMode) => {
-    const target = presetQueueElement(link);
-    const shelf = target ? queues.get(target) : undefined;
-    if (!target || !shelf) return false;
+    const target = presetSource(link);
+    if (!target) return false;
+    const shelf = target.queue;
     playOrder = link.dataset.presetOrder === 'shuffle' ? 'shuffle' : 'ordered';
     repeat = link.dataset.presetRepeat === 'true';
     for (const input of orderInputs) input.checked = input.value === playOrder;
     if (repeatToggle) repeatToggle.checked = repeat;
-    queueElement = target;
+    source = target;
     const skip = skipped();
     shuffledKeys =
       playOrder === 'shuffle'
@@ -551,7 +606,8 @@ export function initVideoShelfPlayer(): VideoShelfPlayerHandle | undefined {
     if (!VIDEO_ID_PATTERN.test(card.dataset.videoId ?? '')) return false;
     const key = keyOf(card);
     markPreset(undefined);
-    queueElement = card.closest<HTMLElement>('[data-queue-id]');
+    const shelf = card.closest<HTMLElement>('[data-queue-id]');
+    source = shelf ? shelfSources.get(shelf) : undefined;
     reshuffleFrom(key);
     const isFirstPlay = !player && !playerReady;
     load(key, 'play', { focusPlayer: isFirstPlay });
@@ -614,11 +670,10 @@ export function initVideoShelfPlayer(): VideoShelfPlayerHandle | undefined {
   // ブラウザが戻ったときに復元するフォームの状態は使わず、初期値に揃える。
   if (repeatToggle) repeatToggle.checked = false;
   for (const input of orderInputs) input.checked = input.value === 'ordered';
-  // 棚が空（動画の取得に失敗したなど）のプリセットは出さない。
+  // 棚が空（動画の取得に失敗したなど）や、タグを持つ項目がないプリセットは出さない。
   for (const link of presetLinks) {
-    const target = presetQueueElement(link);
     const item = link.closest('li');
-    if (item) item.hidden = !target || (queues.get(target)?.keys.length ?? 0) === 0;
+    if (item) item.hidden = (presetSource(link)?.queue.keys.length ?? 0) === 0;
   }
   if (presetsEl) presetsEl.hidden = presetLinks.every((link) => link.closest('li')?.hidden);
   stage.hidden = false;

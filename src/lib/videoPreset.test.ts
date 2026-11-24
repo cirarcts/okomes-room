@@ -54,6 +54,36 @@ describe('validatePresets', () => {
     );
   });
 
+  it('タグのプリセットは、表示するプレイリストの項目にそのタグがあれば通る（表記ゆれは同じとみなす）', () => {
+    const tags = new Set(['神回', 'boss']);
+    const result = validatePresets(
+      [preset({ id: 't', queue: undefined, tag: 'ＢＯＳＳ' })],
+      known,
+      tags,
+    );
+    expect(result.map(({ id }) => id)).toEqual(['t']);
+  });
+
+  it('どの項目にもないタグを指定するとエラー', () => {
+    expect(() =>
+      validatePresets(
+        [preset({ id: 't', queue: undefined, tag: 'ラスボス' })],
+        known,
+        new Set(['神回']),
+      ),
+    ).toThrow(/ラスボス/);
+  });
+
+  it('棚とタグの両方、またはどちらも指定しないとエラー', () => {
+    const tags = new Set(['神回']);
+    expect(() => validatePresets([preset({ id: 'x', tag: '神回' })], known, tags)).toThrow(
+      /どちらか一方/,
+    );
+    expect(() => validatePresets([preset({ id: 'x', queue: undefined })], known, tags)).toThrow(
+      /どちらか一方/,
+    );
+  });
+
   it('idが重複するとエラー', () => {
     expect(() => validatePresets([preset({ id: 'x' }), preset({ id: 'x' })], known)).toThrow(
       /重複/,
